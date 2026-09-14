@@ -80,7 +80,7 @@ have actually been verified.
 
 1. **Self-signed certs break `http` checks.** Node's `fetch` rejects them
    (`DEPTH_ZERO_SELF_SIGNED_CERT`) even via an HTTP-to-HTTPS redirect, so
-   the service reports a false "down". `rahima-aziz` is a `tcp` check for
+   the service reports a false "down". `openmasjidos` is a `tcp` check for
    exactly this reason. Don't "fix" it back to `http`, and don't disable
    TLS verification globally.
 2. **`uptime24h` is prorated, not a bucket sum.** Aggregates are

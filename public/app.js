@@ -8,11 +8,14 @@ const prefersReducedMotion = () => reducedMotion.matches;
 
 // ---- presence (Discord, via Lanyard) ----
 //
-// TODO: set this to your Discord user ID (enable Developer Mode in Discord
-// settings, then right-click your profile → Copy User ID).
-// Lanyard only tracks presence for members of its support server —
-// join it once at https://discord.gg/lanyard and it'll keep working.
-const DISCORD_USER_ID = "YOUR_DISCORD_ID_HERE";
+// To change this: enable Developer Mode in Discord settings, then right-click
+// a profile → Copy User ID. Lanyard only tracks presence for members of its
+// own server, so the account must have joined https://discord.gg/lanyard once.
+//
+// This ID is public by necessity — the browser calls the Lanyard API with it,
+// so it ships in this file. Discord user IDs aren't secrets, but don't treat
+// this as a private value.
+const DISCORD_USER_ID = "761016030892916737";
 
 const PRESENCE_LABEL = {
   online: "online now",

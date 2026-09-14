@@ -14,11 +14,10 @@
       "target": "http://192.168.1.146:8096/health"
     },
     {
-      "id": "rahima-aziz",
-      "name": "Rahima Aziz Foundation site",
+      "id": "openmasjidos",
+      "name": "OpenMasjidOS",
       "type": "tcp",
-      "target": "192.168.1.18:443",
-      "publicUrl": "https://rahimaazizfoundation.us"
+      "target": "192.168.1.18:443"
     },
     {
       "id": "immich",
