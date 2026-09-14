@@ -30,7 +30,8 @@ compromise it for convenience.
 The response envelope is exactly:
 
 ```json
-{ "services": [ { "id", "name", "status", "latencyMs", "lastChecked",
+{ "nodes": [ { "id", "label" } ],
+  "services": [ { "id", "name", "node", "status", "latencyMs", "lastChecked",
                   "uptime24h", "uptime30d", "publicUrl" } ],
   "generatedAt": "<ISO timestamp>" }
 ```
@@ -41,7 +42,12 @@ The response envelope is exactly:
 - `uptime24h` / `uptime30d` are percentages to one decimal, or `null`
   with no data yet.
 - `id` is a config slug, not host data — it is safe to expose.
+- `node` / `nodes` are display labels ("Node 1 — lxcpool"), not addresses.
 - `publicUrl` is an intentionally public link, or `null`.
+
+The handler builds this object field by field on purpose. Don't "simplify"
+it by spreading the config entry (`...svc`) into the response — that would
+carry `target` straight out to every visitor.
 
 Any change that threads a `target` value into an API response or a file
 under `public/` is a bug, not a feature. Logging targets server-side is
@@ -59,9 +65,12 @@ contains, no code changes needed.
 
 ```json
 {
+  "nodes": [
+    { "id": "node1", "label": "Node 1 — lxcpool" }
+  ],
   "services": [
-    { "id": "unique-slug", "name": "Display name", "type": "http",
-      "target": "http://192.168.1.X:PORT[/path]",
+    { "id": "unique-slug", "name": "Display name", "node": "node1",
+      "type": "http", "target": "http://192.168.1.X:PORT[/path]",
       "publicUrl": "https://optional-public-link.example" }
   ]
 }
@@ -71,23 +80,43 @@ contains, no code changes needed.
   as up**, so a reachable-but-wrong path can read as a false green.
 - `type: "tcp"` — opens `host:port` with a 5s timeout. Use this when
   there's no usable HTTP endpoint. `target` is `"host:port"`, no scheme.
+- `node` must match a `nodes[].id`; the front end renders one grid per
+  node, in the order `nodes` declares. A service with an unknown `node`
+  gets an unlabelled group, so keep the two in sync.
 - `publicUrl` is optional; it renders a "visit" link on the tile.
 
-### Current targets and whether they're actually verified
+**Checks run concurrently**, with `CHECK_CONCURRENCY = 8` and a
+`checksRunning` guard. This isn't premature optimisation: sequentially, 26
+services at up to 5s each is ~130s, which overruns the 60s interval and
+makes rounds overlap and double-count. If the service list grows a lot,
+raise the pool rather than the interval.
 
-Probed directly against the live hosts. A target that has never been
-confirmed is worth more suspicion than a green tile suggests.
+### How the current targets were established
 
-| id | target | verified? |
-|---|---|---|
-| `openmasjid-solutions` | `http://192.168.1.241:3000` | ❌ **Not reachable.** CT 122 is running and its IP is right, but nothing answered on 3000 — or on 80, 443, 22, 3001, 4000, 5000, 8000, 8080, 8081, 8443 or 9000. Needs `ss -tlnp` inside the container to find the real port. |
-| `jellyfin` | `http://192.168.1.146:8096/health` | ✅ Confirmed — returns 200. |
-| `openmasjidos` | `192.168.1.18:443` (tcp) | ✅ Confirmed — connects. TCP **on purpose**; see gotcha 1 below. |
-| `immich` | `http://192.168.1.98:2283` | ✅ Confirmed — returns 200. CT 200, on **node 2**. |
+Every port in `config.json` was found by scanning the hosts from `pct list`
+across ~40 common self-hosted ports, then HTTP-probing each open port with
+the same `fetch` call `server.js` uses. None of them are guesses — but
+re-verify after moving a service: a wrong port reads as "down", and a
+reachable-but-wrong *path* reads as **up** (any status below 500 counts),
+which produces a falsely green tile.
 
-A wrong port reads as "down". A reachable-but-wrong path reads as **up**,
-because any HTTP status below 500 counts as up — so an unconfirmed path
-can produce a falsely green tile.
+Services that are `tcp` rather than `http`, and why. Don't "upgrade" these
+to `http` without re-testing:
+
+| service | why tcp |
+|---|---|
+| `openmasjidos`, `mycontainer` | redirect to HTTPS with a self-signed cert; `fetch` rejects it (`DEPTH_ZERO_SELF_SIGNED_CERT`) and reports a false "down". |
+| `proxmox-backup-server` | HTTPS on 8007, self-signed, same failure. |
+| `vaultwarden` | answers on 8000 but not with HTTP/1.1 — `fetch` throws "Response does not match the HTTP/1.1 protocol". |
+| `anytype-server` | only 6379 (Redis) is exposed; there is no HTTP endpoint. |
+| `osint`, `postiebot` | no network service at all — only SSH. The check is on :22, so a green tile means "the container is alive", not "the app is healthy". |
+
+One known-failing target: **`openmasjid-solutions`** (CT 122). The container
+is up — SSH answers — but nothing listens on 3000, or on any other port in
+1–10000. It is deliberately left pointed at its intended web port so the
+tile reads "down", which is true, rather than at :22, which would show a
+misleading green. Run `ss -tlnp` in that container to find the real port.
+
 
 ### Two gotchas worth not rediscovering
 
@@ -220,17 +249,26 @@ plus a small status dot, then a row of **exactly three** mono readouts —
 24h uptime, 30d uptime, latency — and an optional `.status-visit` link
 when `publicUrl` is set.
 
+Tiles are grouped by node: `#status-groups` holds one `.status-group` per
+entry in `nodes`, each with a `.status-group-title` heading and its own
+`.status-grid`. Heading order is `h2` "My homelab" → `h3` node → `h4`
+service; keep it that way.
+
 Structural details that are load-bearing, not incidental:
 
-- `.status-grid` uses `minmax(260px, 1fr)` tracks. Narrower tracks force
-  the three readouts to wrap, which leaves tiles ragged and misaligned
-  against each other.
+- `.status-grid` uses `minmax(198px, 1fr)` tracks. That number is derived,
+  not taste: the desktop content column is 632px (980 − 48 padding − 260
+  identity − 40 gap), so three tracks plus two 12px gaps must fit in 632 —
+  anything from ~205px up silently drops to **two** columns. If you change
+  the layout width, the identity column or the gap, recompute it.
 - `.status-readout` is a **3-column grid**, not flex-wrap. A fixed
   three-track layout keeps every tile's numbers on the same baseline;
-  wrapping cannot guarantee that.
+  wrapping leaves them ragged between tiles.
 - `.status-card` is a flex column and `.status-visit` has `margin-top:
   auto`, so the visit link anchors to the bottom and tiles with and
   without one still line up.
+- The entrance stagger is capped at `min(index, 12)` so a long list
+  finishes appearing promptly instead of trickling in for seconds.
 
 The status dot uses the **same glow pattern as the presence dot**:
 `0 0 0 5px` at 0.16 alpha, green when up, red when down, and **no glow**

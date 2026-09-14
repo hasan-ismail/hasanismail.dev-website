@@ -236,7 +236,7 @@ h1, h2, h3 {
 .status-card.status-up .status-dot { background: var(--up); box-shadow: 0 0 0 5px rgba(14, 159, 110, 0.16); }
 .status-card.status-down .status-dot { background: var(--down); box-shadow: 0 0 0 5px rgba(225, 29, 72, 0.16); }
 
-.status-card-head h3 {
+.status-card-head h4 {
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 0.94rem;
   font-weight: 500;
@@ -517,3 +517,48 @@ h1, h2, h3 {
 .status-readout div { min-width: 0; }
 
 .status-visit { margin-top: auto; padding-top: 12px; }
+
+/* ==========================================================================
+   HOMELAB GROUPS
+   The service list is long enough (one tile per container, across two nodes)
+   that it needs grouping and a denser grid than the original four-tile
+   layout. Tiles stay glass and keep their three mono readouts.
+   ========================================================================== */
+
+.status-group + .status-group { margin-top: 26px; }
+
+.status-group-title {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink-muted);
+  margin: 0 0 10px;
+}
+
+.status-grid {
+  /* 198px is chosen so three tracks fit the 632px desktop content column;
+     212px silently fell back to two. */
+  grid-template-columns: repeat(auto-fill, minmax(198px, 1fr));
+  gap: 12px;
+}
+
+.status-card { padding: 13px 15px; }
+
+.status-card-head {
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.status-card-head h4 {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.87rem;
+  font-weight: 500;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.status-readout { gap: 8px; }
+.status-readout dt { font-size: 0.64rem; }
+.status-readout dd { font-size: 0.78rem; }
+
+.status-visit { padding-top: 10px; font-size: 0.76rem; }

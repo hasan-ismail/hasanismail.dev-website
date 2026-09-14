@@ -175,20 +175,43 @@ function checkTcp(target, timeoutMs) {
   });
 }
 
+async function checkOne(svc) {
+  try {
+    const result =
+      svc.type === "tcp"
+        ? await checkTcp(svc.target, CHECK_TIMEOUT_MS)
+        : await checkHttp(svc.target, CHECK_TIMEOUT_MS);
+    recordResult(svc.id, result.ok, result.latencyMs);
+  } catch (err) {
+    // A malformed entry must not take the whole checker down — record it as
+    // down and keep going.
+    console.error(`check failed for "${svc.id}":`, err.message);
+    recordResult(svc.id, false, 0);
+  }
+}
+
+// Checks run concurrently with a bounded pool. Sequentially, N services each
+// costing up to CHECK_TIMEOUT_MS would exceed CHECK_INTERVAL_MS once N grows
+// past ~12, so runs would overlap and double-count. The cap keeps a large
+// service list from opening dozens of sockets at once.
+const CHECK_CONCURRENCY = 8;
+let checksRunning = false;
+
 async function runChecks() {
-  for (const svc of config.services) {
-    try {
-      const result =
-        svc.type === "tcp"
-          ? await checkTcp(svc.target, CHECK_TIMEOUT_MS)
-          : await checkHttp(svc.target, CHECK_TIMEOUT_MS);
-      recordResult(svc.id, result.ok, result.latencyMs);
-    } catch (err) {
-      // A malformed entry must not take the whole checker down — record it as
-      // down and keep going.
-      console.error(`check failed for "${svc.id}":`, err.message);
-      recordResult(svc.id, false, 0);
-    }
+  // Belt-and-braces: never let a slow round overlap the next tick.
+  if (checksRunning) return;
+  checksRunning = true;
+  try {
+    const queue = [...config.services];
+    const workers = Array.from(
+      { length: Math.min(CHECK_CONCURRENCY, queue.length) },
+      async () => {
+        while (queue.length) await checkOne(queue.shift());
+      },
+    );
+    await Promise.all(workers);
+  } finally {
+    checksRunning = false;
   }
 }
 
@@ -198,12 +221,15 @@ setInterval(runChecks, CHECK_INTERVAL_MS);
 // ---------- public API (sanitized — no internal hosts/ports/IPs) ----------
 
 app.get("/api/status", (req, res) => {
+  // Every field here is explicitly chosen. `id`, `name` and `node` are labels,
+  // not addresses — `target` and anything derived from it never appears.
   const out = config.services.map((svc) => {
     const entry = history[svc.id];
     const last = entry?.last;
     return {
       id: svc.id,
       name: svc.name,
+      node: svc.node ?? null,
       status: last ? (last.ok ? "up" : "down") : "unknown",
       latencyMs: last?.ok ? last.latencyMs : null,
       lastChecked: last?.at ?? null,
@@ -212,7 +238,8 @@ app.get("/api/status", (req, res) => {
       publicUrl: svc.publicUrl ?? null,
     };
   });
-  res.json({ services: out, generatedAt: new Date().toISOString() });
+  const nodes = (config.nodes ?? []).map((n) => ({ id: n.id, label: n.label }));
+  res.json({ nodes, services: out, generatedAt: new Date().toISOString() });
 });
 
 app.listen(PORT, () => {

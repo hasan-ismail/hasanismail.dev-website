@@ -38,8 +38,9 @@ upgrade path. I run it on my own hardware behind a Cloudflare Tunnel.
 
 ## Configuration
 
-Monitored services live in `config.json` — add, remove or retarget an
-entry there and the front end picks it up, no code changes needed.
+Monitored services live in `config.json`, grouped by the node they run on
+— add, remove or retarget an entry there and the front end picks it up,
+no code changes needed.
 Discord presence uses [Lanyard](https://github.com/Phineas/lanyard), so
 it needs a Discord user ID that has joined the Lanyard server.
 

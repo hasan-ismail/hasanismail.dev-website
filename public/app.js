@@ -147,13 +147,15 @@ const tiles = new Map();
 function buildTile(svc, index) {
   const card = document.createElement("article");
   card.className = "status-card glass status-" + svc.status;
-  card.style.setProperty("--i", String(index)); // drives the staggered entrance
+  // Drives the staggered entrance. Capped so a long service list still
+  // finishes appearing quickly instead of trickling in for seconds.
+  card.style.setProperty("--i", String(Math.min(index, 12)));
 
   const head = document.createElement("div");
   head.className = "status-card-head";
   const dot = document.createElement("span");
   dot.className = "status-dot";
-  const title = document.createElement("h3");
+  const title = document.createElement("h4");
   title.textContent = svc.name;
   head.append(dot, title);
   card.appendChild(head);
@@ -188,8 +190,34 @@ function buildTile(svc, index) {
   return { card, readouts };
 }
 
-function renderStatus(services) {
-  const grid = document.getElementById("status-grid");
+// One grid per node, created on demand and reused across polls.
+const groups = new Map();
+
+function gridForNode(nodeId, nodes) {
+  if (groups.has(nodeId)) return groups.get(nodeId);
+
+  const container = document.getElementById("status-groups");
+  const wrap = document.createElement("div");
+  wrap.className = "status-group";
+
+  const meta = nodes.find((n) => n.id === nodeId);
+  if (meta) {
+    const heading = document.createElement("h3");
+    heading.className = "status-group-title";
+    heading.textContent = meta.label;
+    wrap.appendChild(heading);
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "status-grid";
+  wrap.appendChild(grid);
+  container.appendChild(wrap);
+
+  groups.set(nodeId, grid);
+  return grid;
+}
+
+function renderStatus(services, nodes) {
   const placeholder = document.getElementById("status-loading");
   if (placeholder) placeholder.remove();
 
@@ -198,7 +226,7 @@ function renderStatus(services) {
     if (!tile) {
       tile = buildTile(svc, index);
       tiles.set(svc.id, tile);
-      grid.appendChild(tile.card);
+      gridForNode(svc.node, nodes).appendChild(tile.card);
     }
     tile.card.className = "status-card glass status-" + svc.status;
     setReadout(tile.readouts.uptime24h, svc.uptime24h, formatUptime);
@@ -221,7 +249,7 @@ async function updateStatus() {
   try {
     const res = await fetch("/api/status");
     const json = await res.json();
-    renderStatus(json.services);
+    renderStatus(json.services, json.nodes || []);
     // Report when the services were last actually checked, not when the
     // response was generated — generatedAt is always "0s ago".
     const stamps = json.services.map((s) => s.lastChecked).filter(Boolean).sort();
