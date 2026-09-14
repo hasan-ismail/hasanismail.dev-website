@@ -45,3 +45,12 @@ it needs a Discord user ID that has joined the Lanyard server.
 
 Architecture notes, the design system and the maintenance details are in
 [CLAUDE.md](CLAUDE.md).
+
+## License
+
+[GNU AGPL-3.0](LICENSE).
+
+You're free to use, modify and redistribute this, provided derivatives
+stay under the same license. Because the AGPL covers network use, if you
+run a modified version as a public service you also have to offer its
+source to the people using it.
