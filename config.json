@@ -16,15 +16,15 @@
     {
       "id": "rahima-aziz",
       "name": "Rahima Aziz Foundation site",
-      "type": "http",
-      "target": "http://192.168.1.18:3000",
+      "type": "tcp",
+      "target": "192.168.1.18:443",
       "publicUrl": "https://rahimaazizfoundation.us"
     },
     {
       "id": "immich",
       "name": "Immich",
       "type": "http",
-      "target": "http://192.168.1.26:2283"
+      "target": "http://192.168.1.98:2283"
     }
   ]
 }

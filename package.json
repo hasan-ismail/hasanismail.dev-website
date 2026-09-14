@@ -2,7 +2,7 @@
   "name": "hasanismail-site",
   "version": "1.0.0",
   "private": true,
-  "description": "hasanismail.org — bio, links, and self-hosted service status",
+  "description": "hasanismail.dev — bio, links, and self-hosted service status",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

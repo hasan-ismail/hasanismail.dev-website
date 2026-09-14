@@ -13,6 +13,7 @@
   --up: #0e9f6e;
   --down: #e11d48;
   --unknown: #94a3b8;
+  --idle: #d9a441;
 }
 
 * { box-sizing: border-box; }
@@ -24,11 +25,22 @@ html, body {
   color: var(--ink);
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   line-height: 1.55;
-  overflow-x: hidden;
 }
 
+/* clip, not hidden: `hidden` on body makes it a scroll container and
+   silently disables position:sticky on the identity panel. The fixed-position
+   blooms create no scrollable overflow, so this is belt-and-braces. */
+html { overflow-x: clip; }
+
 @media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+  /* Every entrance keyframe animates FROM hidden with `backwards` fill, so
+     killing animations here leaves content in its visible base state. */
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .cursor-glow { display: none !important; }
 }
 
 .bloom {
@@ -136,7 +148,6 @@ h1, h2, h3 {
   background: var(--glass-strong);
   border: 1px solid var(--glass-border);
   border-radius: 999px;
-  font-family: 'JetBrains Mono', monospace;
   font-size: 0.8rem;
   color: var(--ink-muted);
 }
@@ -148,8 +159,8 @@ h1, h2, h3 {
   flex-shrink: 0;
 }
 .dot.is-online { background: var(--up); box-shadow: 0 0 0 5px rgba(14, 159, 110, 0.16); }
-.dot.is-idle { background: #d9a441; box-shadow: 0 0 0 5px rgba(217, 164, 65, 0.16); }
-.dot.is-dnd { background: var(--down); box-shadow: 0 0 0 5px rgba(225, 29, 72, 0.14); }
+.dot.is-idle { background: var(--idle); box-shadow: 0 0 0 5px rgba(217, 164, 65, 0.16); }
+.dot.is-dnd { background: var(--down); box-shadow: 0 0 0 5px rgba(225, 29, 72, 0.16); }
 .dot.is-offline { background: var(--unknown); }
 
 .wave {
@@ -186,8 +197,8 @@ h1, h2, h3 {
 .link-item:hover { border-color: var(--teal); transform: translateY(-1px); }
 
 .link-item a {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.92rem;
+  font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .link-desc {
@@ -222,8 +233,8 @@ h1, h2, h3 {
   background: var(--unknown);
   flex-shrink: 0;
 }
-.status-card.status-up .status-dot { background: var(--up); box-shadow: 0 0 0 4px rgba(14, 159, 110, 0.16); }
-.status-card.status-down .status-dot { background: var(--down); box-shadow: 0 0 0 4px rgba(225, 29, 72, 0.14); }
+.status-card.status-up .status-dot { background: var(--up); box-shadow: 0 0 0 5px rgba(14, 159, 110, 0.16); }
+.status-card.status-down .status-dot { background: var(--down); box-shadow: 0 0 0 5px rgba(225, 29, 72, 0.16); }
 
 .status-card-head h3 {
   font-family: 'Plus Jakarta Sans', sans-serif;
@@ -233,7 +244,8 @@ h1, h2, h3 {
 
 .status-readout {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
   margin: 0;
 }
 .status-readout div { display: flex; flex-direction: column; gap: 2px; }
@@ -245,7 +257,17 @@ h1, h2, h3 {
   margin: 0;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.9rem;
+  white-space: nowrap;
 }
+
+.status-visit {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  transition: color 0.15s ease;
+}
+.status-visit:hover { color: var(--ink); }
 
 .status-meta {
   margin: 16px 0 0;
@@ -270,3 +292,228 @@ h1, h2, h3 {
   }
   .identity { position: sticky; top: 80px; }
 }
+
+/* ==========================================================================
+   MOTION SYSTEM
+   --------------------------------------------------------------------------
+   Rule for every entrance animation below: the element's BASE state is its
+   FINAL state, and the keyframe animates *from* the hidden state with
+   `backwards` fill. That way the reduced-motion override (`animation: none`)
+   leaves content fully visible instead of stranding it at opacity 0.
+
+   Only transform/opacity/filter are animated — all compositor-friendly.
+   ========================================================================== */
+
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(18px); }
+}
+@keyframes rise-in-sm {
+  from { opacity: 0; transform: translateY(10px); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+
+/* ---- entrance choreography (staggered, ~0.15s apart) ---- */
+
+.identity-inner { animation: rise-in 0.85s var(--ease-out-expo) backwards; }
+.links h2       { animation: rise-in-sm 0.6s var(--ease-out-expo) 0.30s backwards; }
+.status h2      { animation: rise-in-sm 0.6s var(--ease-out-expo) 0.55s backwards; }
+.status-meta    { animation: fade-in 0.6s ease 0.85s backwards; }
+
+.link-item { animation: rise-in-sm 0.65s var(--ease-out-expo) backwards; }
+.link-item:nth-child(1) { animation-delay: 0.36s; }
+.link-item:nth-child(2) { animation-delay: 0.43s; }
+.link-item:nth-child(3) { animation-delay: 0.50s; }
+.link-item:nth-child(4) { animation-delay: 0.57s; }
+.link-item:nth-child(5) { animation-delay: 0.64s; }
+.link-item:nth-child(6) { animation-delay: 0.71s; }
+
+/* Status tiles are built by app.js, which sets --i to the tile index. */
+.status-card {
+  animation: rise-in-sm 0.6s var(--ease-out-expo) backwards;
+  animation-delay: calc(0.6s + var(--i, 0) * 0.07s);
+}
+
+/* ---- signature motif: the wave draws itself in, then breathes ----
+   The path carries pathLength="1", so the dash maths is resolution-independent. */
+
+.wave { animation: fade-in 0.5s ease 0.2s backwards; }
+.wave path {
+  stroke-dasharray: 1;
+  animation:
+    wave-draw 1.7s var(--ease-out-expo) 0.3s backwards,
+    wave-breathe 7s ease-in-out 2s infinite;
+}
+@keyframes wave-draw {
+  from { stroke-dashoffset: 1; }
+}
+@keyframes wave-breathe {
+  0%, 100% { opacity: 0.75; }
+  50%      { opacity: 1; }
+}
+
+/* ---- ambient blooms: richer, more organic drift ----
+   These redefine the earlier drift1/drift2 keyframes (last definition wins). */
+
+@keyframes drift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(50px, 40px) scale(1.05); }
+  66%      { transform: translate(-24px, 62px) scale(0.97); }
+}
+@keyframes drift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-44px, 52px) scale(1.06); }
+}
+
+/* ---- pointer-follow bioluminescence ----
+   A soft teal light that trails the cursor. Desktop pointers only. */
+
+.cursor-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 400px;
+  height: 400px;
+  margin: -200px 0 0 -200px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  background: radial-gradient(circle, rgba(34, 211, 196, 0.14), transparent 65%);
+  transition: opacity 0.6s var(--ease-soft);
+  will-change: transform;
+}
+.cursor-glow.is-active { opacity: 1; }
+
+@media (hover: none), (pointer: coarse) {
+  .cursor-glow { display: none; }
+}
+
+/* ---- link pills: lift, sheen sweep, and a nudging arrow ---- */
+
+.link-item {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.4s var(--ease-out-expo),
+    border-color 0.4s ease,
+    background 0.4s ease;
+}
+.link-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 32%,
+    rgba(34, 211, 196, 0.16) 50%,
+    transparent 68%
+  );
+  transform: translateX(-125%);
+  transition: transform 0.75s var(--ease-out-expo);
+  pointer-events: none;
+}
+.link-item:hover {
+  transform: translateY(-3px);
+  border-color: var(--teal);
+  background: var(--glass-strong);
+}
+.link-item:hover::before { transform: translateX(125%); }
+
+.link-item a::after {
+  content: "\2192";
+  display: inline-block;
+  margin-inline-start: 7px;
+  opacity: 0;
+  transform: translateX(-5px);
+  transition: opacity 0.35s ease, transform 0.35s var(--ease-out-expo);
+}
+.link-item:hover a::after {
+  opacity: 0.55;
+  transform: translateX(0);
+}
+
+/* ---- status tiles: lift + accent edge on hover (no drop shadows) ---- */
+
+.status-card {
+  position: relative;
+  transition:
+    transform 0.4s var(--ease-out-expo),
+    border-color 0.4s ease,
+    background 0.4s ease;
+}
+.status-card:hover {
+  transform: translateY(-3px);
+  background: var(--glass-strong);
+  border-color: rgba(34, 211, 196, 0.45);
+}
+
+/* ---- "live" pulse ----
+   An expanding ring on things that are currently up/online. Deliberately
+   limited to the healthy state: it reads as a heartbeat, and firing it on
+   every down service at once would be noise, not signal. */
+
+.dot, .status-dot { position: relative; }
+
+.dot.is-online::after,
+.status-card.status-up .status-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--up);
+  pointer-events: none;
+  animation: live-pulse 2.6s ease-out infinite;
+}
+@keyframes live-pulse {
+  0%        { opacity: 0.5; transform: scale(1); }
+  70%, 100% { opacity: 0;   transform: scale(3.4); }
+}
+
+/* ---- numeric readouts flash teal as they update ---- */
+
+.status-readout dd { transition: color 0.45s ease; }
+.status-readout dd.is-changing { color: var(--teal); }
+
+/* ---- presence pill settles in with the identity card ---- */
+
+.presence { transition: border-color 0.4s ease, background 0.4s ease; }
+
+/* ==========================================================================
+   STATUS GRID REFINEMENTS
+   Wider tracks so the three mono readouts always sit on one row (flex-wrap
+   made them ragged and inconsistent between tiles), and a flex column so the
+   optional "visit" link anchors to the bottom and tile content stays aligned.
+   ========================================================================== */
+
+.status-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.status-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.status-card-head h3 {
+  line-height: 1.3;
+}
+
+/* A fixed three-column track never wraps and keeps every tile's readouts on
+   the same baseline, which flex-wrap could not guarantee. */
+.status-readout {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+.status-readout div { min-width: 0; }
+
+.status-visit { margin-top: auto; padding-top: 12px; }
