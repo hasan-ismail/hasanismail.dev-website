@@ -12,14 +12,50 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-# Node 20 via NodeSource if node is missing or older than 18.
-if ! command -v node >/dev/null 2>&1 || [ "$(node -v | sed 's/v//;s/\..*//')" -lt 18 ]; then
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-  apt-get install -y nodejs
+apt_updated=0
+apt_update_once() {
+  [ "$apt_updated" -eq 1 ] && return
+  apt-get update
+  apt_updated=1
+}
+
+# Major version of the installed node, or 0 if there isn't one.
+node_major() {
+  command -v node >/dev/null 2>&1 || { echo 0; return; }
+  node -v | sed 's/v//;s/\..*//'
+}
+
+# Debian 13 (trixie) — the deploy target — ships Node 20.19 in its own repos
+# (npm is packaged separately), which already satisfies the >=18 requirement.
+# Prefer it: it avoids adding a third-party repo and piping a remote script to
+# bash as root. NodeSource stays as the fallback for older/other distros.
+if [ "$(node_major)" -lt 18 ]; then
+  apt_update_once
+  # nodejs only — npm is handled separately below, once the version is known
+  # good. Installing the distro npm here would conflict with the NodeSource
+  # package on older distros, where it bundles its own.
+  apt-get install -y nodejs || true
+
+  if [ "$(node_major)" -lt 18 ]; then
+    echo "Distro node is missing or older than 18 — falling back to NodeSource."
+    apt-get install -y ca-certificates curl
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y nodejs
+  fi
+fi
+
+if [ "$(node_major)" -lt 18 ]; then
+  echo "Could not install Node 18+. Install it manually, then re-run this script." >&2
+  exit 1
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  apt_update_once
+  apt-get install -y npm
 fi
 
 if ! command -v git >/dev/null 2>&1; then
-  apt-get update
+  apt_update_once
   apt-get install -y git
 fi
 

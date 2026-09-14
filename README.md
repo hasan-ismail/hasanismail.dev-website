@@ -35,18 +35,28 @@ Once the repo above is pushed, run this on the target as root:
 curl -fsSL https://raw.githubusercontent.com/hasan-ismail/hasanismail.dev-website/main/install.sh | bash
 ```
 
-It installs Node 20 if needed, installs `git` if needed, clones to
-`/opt/hasanismail-site`, installs production deps, and enables the
-`hasanismail-site` systemd unit on port 3300. Re-running it pulls the
-latest code, refreshes deps, and restarts the service — so the same
-one-liner is also the upgrade path.
+It clones to `/opt/hasanismail-site`, installs production deps, and
+enables the `hasanismail-site` systemd unit on port 3300. Re-running it
+pulls the latest code, refreshes deps, and restarts the service — so the
+same one-liner is also the upgrade path.
+
+Node is only installed if the container doesn't already have 18+. Debian
+13 ships Node 20.19 in its own repos (with `npm` packaged separately), so
+on this target it comes from `apt` — no third-party repo, and no remote
+script piped to bash as root. NodeSource is kept only as a fallback for
+older distros.
 
 ### Deployment target
 
-CT 124 on node 1 (`lxcpool`) — Debian 13, 2 vCPU / 2 GB / 32 GB,
-hostname `hasanismail.dev`, unprivileged, DHCP (currently 192.168.1.200).
-The service listens on port 3300 and is fronted by a Cloudflare Tunnel,
-the same pattern as `openmasjidsolutions.org` and `openmasjidos`.
+A Proxmox LXC: **CT 124 on node 1 (`lxcpool`)** — Debian 13, 2 vCPU /
+2 GB / 32 GB, hostname `hasanismail.dev`, unprivileged, DHCP (currently
+192.168.1.200). Run the installer as root inside the container. The
+service listens on port 3300 and is fronted by a Cloudflare Tunnel, the
+same pattern as `openmasjidsolutions.org` and `openmasjidos`.
+
+Immich lives on the **second** Proxmox node (CT 200, 192.168.1.98) — the
+status checks reach it over the LAN, so nothing special is needed, but
+it's worth knowing when a target stops responding.
 
 ## Still manual after install
 

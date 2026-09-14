@@ -305,12 +305,25 @@ runs, so anything unreachable from your machine shows as "down" locally.
 
 ## Deployment target
 
-CT 124 on node 1 (`lxcpool`) — Debian 13, 2 vCPU / 2 GB / 32 GB, hostname
-`hasanismail.dev`, unprivileged, DHCP (currently 192.168.1.200). Runs as
-the `hasanismail-site` systemd unit on port 3300, fronted by a Cloudflare
-Tunnel — same pattern as `openmasjidsolutions.org` / `openmasjidos`. See
-`install.sh` and `hasanismail-site.service`. GitHub repo:
+A **Proxmox LXC**: CT 124 on node 1 (`lxcpool`) — Debian 13, 2 vCPU /
+2 GB / 32 GB, hostname `hasanismail.dev`, unprivileged, DHCP (currently
+192.168.1.200). Runs as the `hasanismail-site` systemd unit on port 3300,
+fronted by a Cloudflare Tunnel — same pattern as
+`openmasjidsolutions.org` / `openmasjidos`. See `install.sh` and
+`hasanismail-site.service`. GitHub repo:
 `hasan-ismail/hasanismail.dev-website` (public).
+
+The installer runs as root inside the container. It only installs Node if
+18+ isn't present: **Debian 13 ships Node 20.19 in its own repos** (npm is
+a separate package), so `apt` covers it and NodeSource is just a fallback
+for older distros. Don't "simplify" that back to an unconditional
+NodeSource pipe — the distro package avoids a third-party repo and piping
+a remote script to bash as root.
 
 Re-running `install.sh` is the upgrade path: it pulls, reinstalls deps,
 and restarts the unit.
+
+The monitored services span **both** Proxmox nodes — Immich is CT 200 on
+node 2 (192.168.1.98), everything else is on node 1. Checks go over the
+LAN, so the split doesn't matter operationally, but it explains why the
+Immich target's IP is in a different range of the inventory.
