@@ -1,0 +1,14 @@
+[Unit]
+Description=hasanismail.org site
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/hasanismail-site
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+Environment=PORT=3300
+
+[Install]
+WantedBy=multi-user.target

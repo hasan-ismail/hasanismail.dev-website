@@ -1,0 +1,4 @@
+node_modules/
+data/*.json
+!data/.gitkeep
+package-lock.json

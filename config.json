@@ -1,0 +1,30 @@
+{
+  "services": [
+    {
+      "id": "openmasjid-solutions",
+      "name": "OpenMasjid Solutions",
+      "type": "http",
+      "target": "http://192.168.1.241:3000",
+      "publicUrl": "https://openmasjidsolutions.org"
+    },
+    {
+      "id": "jellyfin",
+      "name": "Jellyfin",
+      "type": "http",
+      "target": "http://192.168.1.146:8096/health"
+    },
+    {
+      "id": "rahima-aziz",
+      "name": "Rahima Aziz Foundation site",
+      "type": "http",
+      "target": "http://192.168.1.18:3000",
+      "publicUrl": "https://rahimaazizfoundation.us"
+    },
+    {
+      "id": "immich",
+      "name": "Immich",
+      "type": "http",
+      "target": "http://192.168.1.26:2283"
+    }
+  ]
+}

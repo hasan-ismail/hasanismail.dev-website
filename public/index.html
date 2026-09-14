@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hasan Ismail</title>
+<meta name="description" content="Hasan Ismail — founder and lead developer of OpenMasjid Solutions.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="bloom bloom-1" aria-hidden="true"></div>
+<div class="bloom bloom-2" aria-hidden="true"></div>
+<div class="bloom bloom-3" aria-hidden="true"></div>
+
+<div class="layout">
+
+  <aside class="identity">
+    <div class="identity-inner glass">
+      <h1>Hasan Ismail</h1>
+      <p class="role">Founder &amp; lead developer, OpenMasjid Solutions</p>
+
+      <div class="presence" id="presence">
+        <span class="dot" id="presence-dot" aria-hidden="true"></span>
+        <span id="presence-text">checking presence&hellip;</span>
+      </div>
+
+      <p class="bio">
+        Building open-source, self-hosted software for masjids —
+        and running the homelab that keeps a chunk of it online.
+      </p>
+
+      <p class="location">Queens, NYC</p>
+    </div>
+  </aside>
+
+  <main class="content">
+
+    <svg class="wave" viewBox="0 0 400 20" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 10 Q 25 0 50 10 T 100 10 T 150 10 T 200 10 T 250 10 T 300 10 T 350 10 T 400 10"
+            fill="none" stroke="currentColor" stroke-width="2"/>
+    </svg>
+
+    <section class="links" aria-label="Links">
+      <h2>Links</h2>
+      <ul class="link-list">
+        <li class="link-item glass">
+          <a href="https://github.com/OpenMasjid-Solutions">github.com/OpenMasjid-Solutions</a>
+          <span class="link-desc">Open-source masjid management platform</span>
+        </li>
+        <li class="link-item glass">
+          <a href="https://github.com/hasan-ismail">github.com/hasan-ismail</a>
+          <span class="link-desc">Personal projects — The Machine, OpenAudio</span>
+        </li>
+        <li class="link-item glass">
+          <a href="https://openmasjidsolutions.org">openmasjidsolutions.org</a>
+          <span class="link-desc">OpenMasjid Solutions</span>
+        </li>
+        <li class="link-item glass">
+          <a href="https://rahimaazizfoundation.us">rahimaazizfoundation.us</a>
+          <span class="link-desc">A masjid running on OpenMasjidOS</span>
+        </li>
+        <!-- add more links here — copy an <li class="link-item glass"> block above,
+             e.g. Discord invite, X/Twitter, email -->
+      </ul>
+    </section>
+
+    <section class="status" aria-label="Service status">
+      <h2>Status</h2>
+      <div class="status-grid" id="status-grid">
+        <p class="status-loading" id="status-loading">Loading&hellip;</p>
+      </div>
+      <p class="status-meta" id="status-meta"></p>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
