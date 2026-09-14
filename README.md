@@ -1,92 +1,19 @@
-# hasanismail.dev-website
+# hasanismail.dev
 
-Bio, links, live self-hosted service status, and Discord presence for
-hasanismail.dev. See [CLAUDE.md](CLAUDE.md) for architecture, the hard
-invariant, and the design system.
+My personal website — [hasanismail.dev](https://hasanismail.dev)
 
-Node + Express backend, vanilla HTML/CSS/JS frontend. No framework, no
-build step, one dependency (`express`).
+A bio, a few links, a Discord presence badge, and a live status grid for
+the self-hosted services I run.
 
-## Publish this as a public GitHub repo
+## Built with
 
-This part has to be run by you — I can't authenticate as you.
+Node + Express on the back end, plain HTML/CSS/JS on the front. No
+framework, no build step, no TypeScript, and a single dependency
+(`express`). The uptime checks run server-side and the API only ever
+returns a status, a latency and an uptime percentage — never the
+addresses being checked.
 
-From the project root, with the GitHub CLI (`gh auth login` once, if you
-haven't):
-
-```bash
-gh repo create hasan-ismail/hasanismail.dev-website --public --source=. --remote=origin --push
-```
-
-Without `gh`, create an empty public repo named `hasanismail.dev-website`
-on github.com, then:
-
-```bash
-git remote add origin https://github.com/hasan-ismail/hasanismail.dev-website.git
-git branch -M main
-git push -u origin main
-```
-
-## Install on the container
-
-Once the repo above is pushed, run this on the target as root:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/hasan-ismail/hasanismail.dev-website/main/install.sh | bash
-```
-
-It clones to `/opt/hasanismail-site`, installs production deps, and
-enables the `hasanismail-site` systemd unit on port 3300. Re-running it
-pulls the latest code, refreshes deps, and restarts the service — so the
-same one-liner is also the upgrade path.
-
-Node is only installed if the container doesn't already have 18+. Debian
-13 ships Node 20.19 in its own repos (with `npm` packaged separately), so
-on this target it comes from `apt` — no third-party repo, and no remote
-script piped to bash as root. NodeSource is kept only as a fallback for
-older distros.
-
-### Deployment target
-
-A Proxmox LXC: **CT 124 on node 1 (`lxcpool`)** — Debian 13, 2 vCPU /
-2 GB / 32 GB, hostname `hasanismail.dev`, unprivileged, DHCP (currently
-192.168.1.200). Run the installer as root inside the container. The
-service listens on port 3300 and is fronted by a Cloudflare Tunnel, the
-same pattern as `openmasjidsolutions.org` and `openmasjidos`.
-
-Immich lives on the **second** Proxmox node (CT 200, 192.168.1.98) — the
-status checks reach it over the LAN, so nothing special is needed, but
-it's worth knowing when a target stops responding.
-
-## Still manual after install
-
-1. **Confirm the service targets in `config.json`.** Three of the four are
-   verified against the live hosts (see the table below);
-   `openmasjid-solutions` still needs attention.
-2. **Point the Cloudflare Tunnel** at this host's port 3300.
-
-Then: `systemctl restart hasanismail-site`.
-
-Discord presence is already configured — `DISCORD_USER_ID` is set in
-`public/app.js` and the account is in the Lanyard server, so the badge
-works with no further setup. To change it later, see the comment above
-that constant.
-
-## Monitored services
-
-| id | target | verified? |
-|---|---|---|
-| `openmasjid-solutions` | `http://192.168.1.241:3000` | ❌ **Not reachable.** CT 122's IP is right, but nothing is listening on 3000 — or on 80, 443, 22, 8080, 8443 or 8723. The container or the app looks stopped. Fix the port (or start the service) before trusting this tile. |
-| `jellyfin` | `http://192.168.1.146:8096/health` | ✅ Confirmed — returns 200. |
-| `openmasjidos` | `192.168.1.18:443` (tcp) | ✅ Confirmed — connects. This one is a **TCP** check on purpose: the host redirects HTTP→HTTPS and serves a self-signed cert, which Node's `fetch` rejects (`DEPTH_ZERO_SELF_SIGNED_CERT`), so an `http` check would report a false "down". TCP confirms the port is live but not that the app is healthy. |
-| `immich` | `http://192.168.1.98:2283` | ✅ Confirmed — returns 200. Note this is CT 200 on **node 2**, at `.98`. |
-
-Editing `config.json` is all that's needed to add, remove, or retarget a
-service — no code changes. A service whose port is wrong reads as
-"down"; one pointed at a reachable-but-wrong path can read as "up",
-since any HTTP status below 500 counts as up.
-
-## Local dev
+## Running it locally
 
 ```bash
 npm install
@@ -95,5 +22,26 @@ npm start
 
 Then open <http://localhost:3300>.
 
-Checks run from wherever the process is running, so anything not
-reachable from your machine will show as "down" locally.
+The status tiles will read "down" for anything not reachable from your
+machine, which is expected — they point at services on my own network.
+
+## Deploying
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hasan-ismail/hasanismail.dev-website/main/install.sh | bash
+```
+
+Run as root on a Debian host. It installs Node if needed, clones to
+`/opt/hasanismail-site`, and sets up a systemd service on port 3300.
+Re-running it pulls the latest code and restarts, so it doubles as the
+upgrade path. I run it on my own hardware behind a Cloudflare Tunnel.
+
+## Configuration
+
+Monitored services live in `config.json` — add, remove or retarget an
+entry there and the front end picks it up, no code changes needed.
+Discord presence uses [Lanyard](https://github.com/Phineas/lanyard), so
+it needs a Discord user ID that has joined the Lanyard server.
+
+Architecture notes, the design system and the maintenance details are in
+[CLAUDE.md](CLAUDE.md).

@@ -73,8 +73,21 @@ contains, no code changes needed.
   there's no usable HTTP endpoint. `target` is `"host:port"`, no scheme.
 - `publicUrl` is optional; it renders a "visit" link on the tile.
 
-See the table in [README.md](README.md) for which of the current targets
-have actually been verified.
+### Current targets and whether they're actually verified
+
+Probed directly against the live hosts. A target that has never been
+confirmed is worth more suspicion than a green tile suggests.
+
+| id | target | verified? |
+|---|---|---|
+| `openmasjid-solutions` | `http://192.168.1.241:3000` | ❌ **Not reachable.** CT 122 is running and its IP is right, but nothing answered on 3000 — or on 80, 443, 22, 3001, 4000, 5000, 8000, 8080, 8081, 8443 or 9000. Needs `ss -tlnp` inside the container to find the real port. |
+| `jellyfin` | `http://192.168.1.146:8096/health` | ✅ Confirmed — returns 200. |
+| `openmasjidos` | `192.168.1.18:443` (tcp) | ✅ Confirmed — connects. TCP **on purpose**; see gotcha 1 below. |
+| `immich` | `http://192.168.1.98:2283` | ✅ Confirmed — returns 200. CT 200, on **node 2**. |
+
+A wrong port reads as "down". A reachable-but-wrong path reads as **up**,
+because any HTTP status below 500 counts as up — so an unconfirmed path
+can produce a falsely green tile.
 
 ### Two gotchas worth not rediscovering
 
