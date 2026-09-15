@@ -1056,17 +1056,26 @@ function initShootingStars() {
   layer.className = "shooting";
   layer.setAttribute("aria-hidden", "true");
 
-  for (let i = 0; i < (narrow ? 3 : 7); i++) {
+  for (let i = 0; i < (narrow ? 6 : 10); i++) {
     const star = document.createElement("i");
     const [hue, rgb] = HUES[i % HUES.length];
     star.style.setProperty("--star", hue);
     star.style.setProperty("--star-rgb", rgb);
     star.style.setProperty("--star-a", (22 + Math.random() * 22).toFixed(1) + "deg");
-    star.style.top = (Math.random() * 55).toFixed(1) + "%";
+    // Was the top 55% only, which on a phone is almost entirely covered by the
+    // profile card. Spreading the full height puts stars in the gaps between
+    // sections and the open area below them, where they can actually be seen.
+    star.style.top = (4 + Math.random() * 84).toFixed(1) + "%";
     star.style.left = "-15vw";
-    star.style.width = (narrow ? 70 + Math.random() * 60 : 90 + Math.random() * 90).toFixed(0) + "px";
-    star.style.animationDuration = (14 + Math.random() * 16).toFixed(1) + "s";
-    star.style.animationDelay = (-Math.random() * 30).toFixed(1) + "s";
+    // Length is free: the contrast budget caps per-pixel brightness, not how
+    // long the streak is, and a long streak reads as a shooting star where a
+    // short faint one reads as a smudge.
+    star.style.width = (narrow ? 170 + Math.random() * 130 : 240 + Math.random() * 200).toFixed(0) + "px";
+    // Shorter cycles plus a longer visible window (see @keyframes shoot): with
+    // 6 stars at a 45% duty cycle the odds of an empty sky are ~3%, against ~37%
+    // at the old 3 stars x 28%. "I still do not see shooting stars" was that.
+    star.style.animationDuration = (6 + Math.random() * 7).toFixed(1) + "s";
+    star.style.animationDelay = (-Math.random() * 13).toFixed(1) + "s";
     layer.appendChild(star);
   }
   document.body.appendChild(layer);

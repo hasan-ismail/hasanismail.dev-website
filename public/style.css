@@ -1748,28 +1748,65 @@ body {
    a constant stream.
    ========================================================================== */
 
+/* ABOVE the content, not behind it. The cap lives in @keyframes shoot.
+
+   At z-index 0 the layer sat under .layout, and on a phone the profile card
+   covers essentially the whole viewport — a star measured fully opaque at
+   y=295 was simply behind the card. Every star was rendering correctly and
+   none were visible, which is what "I still don't see shooting stars" was.
+
+   A screen-blended version of this layer was tried first and dropped: the
+   stars are near-white, and screen(x, white) == white, so blending was
+   pixel-identical to plain alpha compositing while forcing the whole
+   viewport to re-composite every frame. Plain alpha it is.
+
+   The peak opacity in @keyframes shoot is the contrast budget, measured by
+   pinning a streak across .pc-bio-line and comparing glyph contrast inside
+   the band against the same text outside it:
+
+     peak 0.55 -> 3.19:1 inside vs 4.55:1 outside  (fails AA)
+     peak 0.35 -> 3.39:1 inside vs 4.11:1 outside
+     peak 0.32 -> no measurable cost
+
+   Raising it puts a washed 2px band across body text. Re-measure first. */
 .shooting {
   position: fixed;
   inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
 }
 .shooting i {
   position: absolute;
   height: 2px;
   border-radius: 2px;
   opacity: 0;
-  background: linear-gradient(to right, transparent, var(--star, #ffffff));
-  box-shadow: 0 0 10px 1px rgb(var(--star-rgb, 255 255 255) / 0.5);
+  background: linear-gradient(to right, transparent, rgb(var(--star-rgb, 255 255 255) / 0.5) 55%, var(--star, #ffffff));
+  box-shadow: 0 0 16px 2px rgb(var(--star-rgb, 255 255 255) / 0.7);
   animation: shoot linear infinite;
   will-change: transform, opacity;
 }
+/* The bright head. Without it the streak reads as a smudge against the
+   backdrop artwork, which after the vibrancy pass is busy and light. */
+.shooting i::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--star, #ffffff);
+  box-shadow: 0 0 12px 3px rgb(var(--star-rgb, 255 255 255) / 0.8);
+}
+/* Travel occupies 45% of the cycle rather than 32%, so a given star is on
+   screen far more of the time. Parked off-screen for the remainder. */
 @keyframes shoot {
   0%   { opacity: 0; transform: rotate(var(--star-a, 32deg)) translateX(-24vw); }
-  4%   { opacity: 1; }
-  26%  { opacity: 1; }
-  32%  { opacity: 0; transform: rotate(var(--star-a, 32deg)) translateX(132vw); }
+  5%   { opacity: 0.32; }
+  38%  { opacity: 0.32; }
+  45%  { opacity: 0; transform: rotate(var(--star-a, 32deg)) translateX(132vw); }
   100% { opacity: 0; transform: rotate(var(--star-a, 32deg)) translateX(132vw); }
 }
 

@@ -288,10 +288,24 @@ let locCache = { at: 0, data: null };
 let locRunning = false;
 
 const ghHeaders = { "User-Agent": "hasanismail.dev", Accept: "application/vnd.github+json" };
+// Entirely optional. Unauthenticated GitHub allows 60 requests/hour per IP,
+// which one cold crawl can exhaust on its own; a token raises that to 5000.
+// Absent, everything below still works — it just paces itself harder.
+if (process.env.GITHUB_TOKEN) ghHeaders.Authorization = "Bearer " + process.env.GITHUB_TOKEN;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// GitHub reports the remaining quota on every response. Reading it is the
+// only way to pace the crawl honestly — guessing from a call counter drifts,
+// because /api/github's own proxy shares the same per-IP budget.
+let ghRemaining = null;
+let ghResetAt = 0;
 
 async function ghJson(url) {
   const res = await fetch(url, { headers: ghHeaders });
+  const rem = res.headers.get("x-ratelimit-remaining");
+  const reset = res.headers.get("x-ratelimit-reset");
+  if (rem !== null && rem !== "") ghRemaining = Number(rem);
+  if (reset !== null && reset !== "") ghResetAt = Number(reset) * 1000;
   const text = res.status === 204 ? "" : await res.text();
   return { status: res.status, text };
 }
@@ -304,7 +318,11 @@ class RateLimited extends Error {}
 // repo being unavailable. The two must be handled differently.
 const NOT_READY = Symbol("not-ready");
 
-async function repoStats(fullName, tries = 10) {
+// tries was 10. At 13 repos that is up to 130 calls for one crawl, against an
+// unauthenticated ceiling of 60/hour — a single cold crawl could not finish
+// inside its own quota. Three gives GitHub ~5s to produce stats it has not
+// cached; anything still computing is picked up by the next crawl instead.
+async function repoStats(fullName, tries = 3) {
   for (let i = 0; i < tries; i++) {
     const { status, text } = await ghJson(`https://api.github.com/repos/${fullName}/stats/contributors`);
     if (status === 200 && text.trim().startsWith("[")) return JSON.parse(text);
@@ -336,7 +354,15 @@ async function computeLinesAdded() {
   //                contributes nothing and must NOT block publication forever.
   let notReady = 0, unavailable = 0;
 
+  // Leave a little quota behind so /api/github and /api/profile can still
+  // refresh; a crawl that consumes the last call starves the rest of the page.
+  const RESERVE = 6;
+
   for (const full of repos) {
+    if (ghRemaining !== null && ghRemaining <= RESERVE) {
+      notReady += repos.length - counted - unavailable - notReady;
+      return { added, removed, repos: counted, notReady, unavailable, rateLimited: true };
+    }
     let stats;
     try {
       stats = await repoStats(full);
@@ -366,14 +392,25 @@ async function computeLinesAdded() {
 // produced 6,473 instead of the real 483,277. So an incomplete run is never
 // cached as the answer — it is retried shortly, and a previously complete
 // result keeps being served in the meantime.
-const LOC_RETRY_MS = 3 * 60 * 1000;
+// Scheduling is an explicit "do not attempt before" timestamp rather than an
+// age comparison against a completeness flag.
+//
+// The previous version tested `locCache.data.skipped === 0`, but
+// computeLinesAdded() returns `notReady` and `unavailable` and has never
+// returned a `skipped` field — so that test was `undefined === 0`, i.e.
+// permanently false. The 6-hour TTL could therefore never apply and the
+// 3-minute retry branch ran forever. Combined with up to 10 polls per repo,
+// that was several hundred unauthenticated GitHub calls an hour against a
+// limit of 60, so the deployed instance sat permanently rate-limited and the
+// figure never appeared for anyone. Don't reintroduce a derived boolean here;
+// set the next attempt time explicitly at each outcome below.
+const LOC_RETRY_MS = 20 * 60 * 1000;  // some repos still computing
+const LOC_FAIL_MS = 10 * 60 * 1000;   // the crawl threw
+let locNextAt = 0;
 
 function refreshLinesAdded() {
   if (locRunning) return;
-  const age = Date.now() - locCache.at;
-  const complete = locCache.data && locCache.data.skipped === 0;
-  if (complete && age < LOC_TTL_MS) return;
-  if (!complete && age < LOC_RETRY_MS) return;
+  if (Date.now() < locNextAt) return;
 
   locRunning = true;
   computeLinesAdded()
@@ -391,29 +428,47 @@ function refreshLinesAdded() {
       const attempted = data.repos + data.notReady + data.unavailable;
       data.coverage = attempted ? data.repos / attempted : 0;
       data.publishable = data.coverage >= 0.85;
-      if (data.publishable || !locCache.data) {
-        locCache = { at: Date.now(), data };
-      } else {
-        locCache.at = Date.now(); // keep the last publishable data, just back off
-      }
+      // Only a publishable result replaces a publishable one. The first run
+      // seeds the cache regardless so /api/github has something to report,
+      // and the client gates rendering on data.publishable anyway.
+      if (data.publishable || !locCache.data) locCache = { at: Date.now(), data };
+
       if (data.rateLimited) {
-        // Rate-limited is NOT "stats not ready" — retrying in 3 minutes would
-        // just re-trip the limit. Back off for a full hour, which is the
-        // unauthenticated window.
-        locCache.at = Date.now() + LOC_RETRY_MS;
-        console.warn("lines-added hit the GitHub rate limit; backing off an hour");
-      } else if (data.notReady) {
-        console.warn(`lines-added: ${data.notReady} repo(s) still computing, retrying later`);
-      } else if (data.unavailable) {
-        console.warn(`lines-added: published with ${data.unavailable} repo(s) unavailable`);
+        // Wait for the window GitHub itself named, not a guess. ghResetAt
+        // comes from x-ratelimit-reset; the fallback covers a 403 that
+        // arrived without usable headers.
+        const until = ghResetAt > Date.now() ? ghResetAt + 30_000 : Date.now() + 60 * 60 * 1000;
+        locNextAt = until;
+        console.warn(
+          `lines-added rate-limited; next attempt ${new Date(until).toISOString()}`,
+        );
+      } else if (!data.publishable) {
+        // Not good enough to show yet, so it is worth coming back soon.
+        locNextAt = Date.now() + LOC_RETRY_MS;
+        console.warn(
+          `lines-added: ${data.notReady} repo(s) still computing, ` +
+          `coverage ${Math.round(data.coverage * 100)}%, retrying in 20m`,
+        );
+      } else {
+        // Publishable: take the full TTL even if a repo is still computing.
+        // This repo is pushed constantly, so GitHub invalidates its stats and
+        // answers 202 more or less permanently — chasing that last repo every
+        // 20 minutes would keep the unauthenticated quota pinned forever for a
+        // rounding error against ~478k lines.
+        locNextAt = Date.now() + LOC_TTL_MS;
+        if (data.notReady || data.unavailable) {
+          console.warn(
+            `lines-added: published at ${Math.round(data.coverage * 100)}% coverage ` +
+            `(${data.notReady} computing, ${data.unavailable} unavailable)`,
+          );
+        }
       }
     })
     .catch((err) => {
       console.error("lines-added computation failed:", err.message);
-      // Stamp the attempt, or a failing run restarts a ~14-call GitHub crawl on
-      // every single request.
+      // Back off, or a failing run restarts the whole crawl on every request.
+      locNextAt = Date.now() + LOC_FAIL_MS;
       if (!locCache.data) locCache = { at: Date.now(), data: null };
-      else locCache.at = Date.now();
     })
     .finally(() => { locRunning = false; });
 }

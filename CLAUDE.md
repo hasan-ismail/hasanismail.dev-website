@@ -78,7 +78,10 @@ targets. They exist so the page doesn't hit a third-party API once per
 visitor and so a brief upstream outage degrades to stale data rather than
 an empty card.
 
-`/api/github` also returns `linesAdded: { added, removed, repos, skipped }`.
+`/api/github` also returns `linesAdded`: `{ added, removed, repos, notReady,
+unavailable, rateLimited, coverage, publishable }`. **There is no `skipped`
+field** — a stale guard testing `locCache.data.skipped === 0` was therefore
+always false and cost the site the whole figure; see below.
 GitHub has no lines-of-code endpoint, so a background job sums per-week
 additions from `/stats/contributors` across every non-fork repo the user owns
 or co-owns via `config.githubOrgs`, keeping only their own commits and only
@@ -89,8 +92,42 @@ computes a cold repo's stats, and counting only the warm ones produced
 **6,473** instead of the real **483,277** — wrong by two orders of magnitude.
 So an incomplete run is not cached as the answer: it retries after 3 minutes
 instead of the usual 6 hours, a previously complete result keeps being served
-meanwhile, and the UI refuses to render any total with `skipped > 0`. Keep all
-three guards.
+meanwhile, and the UI renders a total only when the server marks it
+`publishable` (coverage >= 85%). Keep all three guards.
+
+### The rate-limit trap that hid the figure for real
+
+Unauthenticated GitHub allows **60 requests/hour per IP**. The crawl is one
+request per repo across ~13 repos, and `repoStats()` used to poll a `202`
+**ten times** — so a single cold crawl could cost ~130 calls and could not
+finish inside its own quota.
+
+Worse, `refreshLinesAdded()` gated on `locCache.data.skipped === 0`, a field
+`computeLinesAdded()` never returns. That is `undefined === 0`, i.e. always
+false, so the 6-hour TTL could never apply and the 3-minute retry branch ran
+forever. The deployed instance sat permanently rate-limited, serving
+`{rateLimited: true, coverage: 0.08, publishable: false}` — the figure was
+invisible on every device, which is what "lines of code not showing on
+mobile" actually was.
+
+What holds it together now, all of which matters:
+
+- `ghJson()` reads `x-ratelimit-remaining` / `x-ratelimit-reset` from every
+  response. Pacing off a local call counter drifts, because `/api/github`'s
+  own proxy spends from the same per-IP budget.
+- The crawl aborts while `RESERVE = 6` calls remain, so it can never starve
+  the rest of the page.
+- `repoStats()` polls a `202` **three** times, not ten.
+- Scheduling is an explicit `locNextAt` timestamp set at each outcome, never
+  a derived boolean: rate-limited waits for GitHub's own reset time,
+  not-publishable retries in 20 minutes, publishable takes the full 6 hours.
+- **A publishable result takes the full TTL even when a repo is still
+  computing.** This repo is pushed constantly, so GitHub invalidates its
+  stats and answers 202 more or less permanently; chasing that one repo
+  every 20 minutes is what kept the quota pinned.
+- `GITHUB_TOKEN` in the environment is optional and raises the ceiling to
+  5000/hour. Nothing requires it; the pacing above is what makes the
+  unauthenticated case work.
 
 The figure is labelled "lines added", not "lines written" — it is additions
 across public repos, so it includes lockfiles and excludes private work.
@@ -382,6 +419,39 @@ regressions. The pass cost 0.1-2.6 points of headroom; the worst element is
 now `#presence-text` at 4.82:1 (was 5.11). Re-run that comparison before
 pushing colour further — there is not much margin left.
 
+### Shooting stars — why they are ABOVE the content
+
+`.shooting` is `z-index: 3`, over `.layout`. It spent three rounds at
+`z-index: 0` where every star rendered perfectly and none could be seen: on
+a phone the profile card covers essentially the whole viewport, and a star
+measured fully opaque at y=295 was simply behind it. Glass at 0.58 alpha
+with a 20px backdrop blur swallows a 2px streak completely. Don't move this
+layer back down.
+
+**The peak opacity in `@keyframes shoot` is a measured contrast budget.**
+Because the layer is above the text, a streak lightens the glyph and its
+background together. Measured by pinning a streak across `.pc-bio-line` and
+comparing glyph contrast inside the band with the same text outside it:
+
+| peak | inside the band | outside | verdict |
+|---|---|---|---|
+| 0.55 | 3.19:1 | 4.55:1 | fails AA |
+| 0.35 | 3.39:1 | 4.11:1 | measurable cost |
+| 0.32 | — | — | no measurable cost |
+
+So brightness is capped and **length is the lever instead** — it costs
+nothing, and a long streak reads as a shooting star where a short faint one
+reads as a smudge. Same reason the head is 4px, not 6px: the head covers
+more glyph height than the 2px streak does.
+
+A `mix-blend-mode: screen` version was tried and dropped. The stars are
+near-white and `screen(x, white) == white`, so it was pixel-identical to
+plain alpha compositing while forcing the whole viewport to re-composite
+every frame.
+
+Six stars at a 45% duty cycle leaves roughly a 3% chance of an empty sky,
+against ~37% for the old three stars at 28%.
+
 ### Timezone chip
 
 `.pc-tz` beside the location. The label says "EST" because that is how the
@@ -488,8 +558,8 @@ and must not be able to inject markup. URLs are auto-linked.
 panel: banner (with the animated nameplate webm over it) → avatar with APNG
 decoration and a presence dot → display name → `@handle · raid is backup` +
 guild tag → badges → action buttons → presence pill → custom status →
-"Currently" → bio → games → member since → connections. Don't split it back
-into two cards.
+"Currently" → bio → games → connections → location. Don't split it back into
+two cards. ("Member since" was removed at the owner's request.)
 
 The panel is deliberately **not** `position: sticky`. Merged, it is taller
 than most viewports, and a sticky box taller than the screen traps its own
@@ -593,9 +663,8 @@ The owner asked for speed; don't slow them back down for "elegance".
 Ambient motion is the exception and stays slow (blooms 19-23s, jellyfish rise
 48-82s). Speeding those to match the UI reads as frantic, not fast.
 
-Also moving: shooting stars (7 on desktop, 3 under 720px — a star is two
-composited properties on a 2px box, so phones get a smaller flock rather
-than none), marine snow (26 motes, randomised size/speed, desktop only), the
+Also moving: shooting stars (10 on desktop, 6 under 720px — see below),
+marine snow (26 motes, randomised size/speed, desktop only), the
 contribution cells stagger in by week, the contribution total counts up, game
 covers lift on hover, and the display name carries a slow gradient shimmer.
 
