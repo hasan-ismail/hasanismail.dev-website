@@ -51,10 +51,18 @@ carry `target` straight out to every visitor.
 
 Any change that threads a `target` value into an API response or a file
 under `public/` is a bug, not a feature. Logging targets server-side is
-fine; sending them to a client is not. There is no route other than
-`/api/status` and the static mount on `public/` — keep it that way, and
-never add a static mount or a route that could serve `config.json`,
-`data/`, or the repo root.
+fine; sending them to a client is not.
+
+The only routes are `/api/status`, `/api/github` and the static mount on
+`public/`. Never add a static mount or a route that could serve
+`config.json`, `data/`, or the repo root.
+
+`/api/github` returns `{ user, total, days: [{ date, count, level }] }` —
+all already-public GitHub data, no addresses. It exists as a server-side
+proxy for two reasons: it caches upstream for an hour so the page doesn't
+hit a third-party API once per visitor, and it serves the last good
+response if upstream fails, so a brief outage doesn't blank the graph.
+The username comes from `config.github`.
 
 ---
 
@@ -296,9 +304,19 @@ than most viewports, and a sticky box taller than the screen traps its own
 bottom off-screen permanently.
 
 Badges are decoded from the `public_flags` bitfield in `badgesFor()` — only
-flags Lanyard actually exposes, nothing inferred. Favourite games are static
-content in a native `<details>`, collapsed by default, so the toggle needs no
-JS and stays keyboard accessible.
+flags Lanyard actually exposes, nothing inferred.
+
+**Games** are static content in a native `<details>`, collapsed by default, so
+the toggle needs no JS and stays keyboard accessible. Covers are Steam library
+capsules (`library_600x900.jpg`, portrait 2:3 — the shape Discord uses). Every
+app id was resolved through Steam's search endpoint, confirmed against the
+store API's returned name, and each image URL checked for a 200 before being
+hardcoded. **Don't add a game by guessing its app id** — a wrong id silently
+renders someone else's box art.
+
+Two have no cover and use a lettered `.game-art--empty` tile instead: Pragmata
+(unreleased — its assets live under a hashed path with no portrait capsule) and
+Minecraft (not on Steam at all).
 
 Details worth not rediscovering:
 
@@ -359,6 +377,22 @@ The owner asked for speed; don't slow them back down for "elegance".
 
 Ambient motion is the exception and stays slow (blooms 19-23s, jellyfish rise
 48-82s). Speeding those to match the UI reads as frantic, not fast.
+
+Also moving: marine snow (26 motes, randomised size/speed, desktop only), the
+contribution cells stagger in by week, the contribution total counts up, game
+covers lift on hover, and the display name carries a slow gradient shimmer.
+
+**Two places legitimately use `opacity: 0` in a base rule**, and both are safe
+only because JS gates them:
+
+- `.reveal` (scroll reveal on the GitHub and homelab sections) — `initReveal()`
+  returns early unless `IntersectionObserver` exists *and* motion is allowed,
+  so the class is never applied where it couldn't be undone.
+- `.pc-display`'s shimmer sets `color: transparent` for the gradient clip; the
+  reduced-motion block pins it back to a solid `--ink` with
+  `-webkit-text-fill-color`, or the name would vanish entirely.
+
+If you add another, gate it the same way and verify by forcing reduced motion.
 
 `@media (prefers-reduced-motion: reduce)` disables **all** animation and
 transition including pseudo-elements, and hides the pointer glow. Non-negotiable.

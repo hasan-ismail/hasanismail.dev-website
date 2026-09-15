@@ -218,6 +218,51 @@ async function runChecks() {
 runChecks();
 setInterval(runChecks, CHECK_INTERVAL_MS);
 
+// ---------- GitHub contributions ----------
+//
+// Proxied server-side and cached so the page doesn't hammer a third-party API
+// once per visitor, and so a brief upstream outage doesn't blank the graph.
+// The upstream needs no token; everything here is already-public data.
+
+const GITHUB_USER = config.github || "hasan-ismail";
+const GITHUB_TTL_MS = 60 * 60 * 1000; // 1 hour
+let githubCache = { at: 0, data: null };
+
+async function fetchContributions() {
+  const url = `https://github-contributions-api.jogruber.de/v4/${encodeURIComponent(GITHUB_USER)}?y=last`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error("upstream " + res.status);
+    const json = await res.json();
+    if (!Array.isArray(json.contributions)) throw new Error("unexpected shape");
+    // Keep only the fields the UI needs.
+    return {
+      user: GITHUB_USER,
+      total: (json.total && json.total.lastYear) || 0,
+      days: json.contributions.map((d) => ({ date: d.date, count: d.count, level: d.level })),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+app.get("/api/github", async (req, res) => {
+  const fresh = Date.now() - githubCache.at < GITHUB_TTL_MS;
+  if (fresh && githubCache.data) return res.json(githubCache.data);
+  try {
+    const data = await fetchContributions();
+    githubCache = { at: Date.now(), data };
+    res.json(data);
+  } catch (err) {
+    console.error("github contributions fetch failed:", err.message);
+    // Serve stale rather than nothing — a year of history doesn't go bad fast.
+    if (githubCache.data) return res.json(githubCache.data);
+    res.status(503).json({ error: "contributions unavailable" });
+  }
+});
+
 // ---------- public API (sanitized — no internal hosts/ports/IPs) ----------
 
 app.get("/api/status", (req, res) => {

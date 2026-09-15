@@ -914,3 +914,204 @@ h1, h2, h3, h4 { font-family: 'Outfit', system-ui, sans-serif; font-weight: 600;
   .status-readout dd { font-size: 0.67rem; }
   .pc-body { padding: 0 16px 18px; }
 }
+
+/* ==========================================================================
+   GAME COVERS
+   Real Steam library capsules (portrait 2:3), the same shape Discord uses.
+   App ids were resolved and each image verified before being hardcoded;
+   Pragmata has no portrait capsule yet and Minecraft is not on Steam, so
+   those two get a lettered tile rather than a wrong cover.
+   ========================================================================== */
+
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px;
+}
+
+.game {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--ink);
+  animation: game-in 0.34s var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--g, 0) * 0.035s);
+}
+
+.game-art {
+  position: relative;
+  display: block;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-lift);
+  border: 1px solid var(--glass-border);
+  transition: transform 0.18s var(--ease-out-expo), border-color 0.18s ease;
+}
+.game-art img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.game-art--empty {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, rgb(var(--violet-rgb) / 0.22), rgb(var(--teal-rgb) / 0.14));
+}
+.game-art--empty::after {
+  content: attr(data-letter);
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--ink);
+  opacity: 0.65;
+}
+
+.game:hover .game-art {
+  transform: translateY(-4px) scale(1.03);
+  border-color: var(--border-accent);
+}
+
+.game-name {
+  font-size: 0.7rem;
+  line-height: 1.25;
+  color: var(--ink-muted);
+  transition: color 0.18s ease;
+}
+.game:hover .game-name { color: var(--ink); }
+
+.game-star {
+  position: absolute;
+  top: 5px; right: 5px;
+  font-size: 0.72rem;
+  color: var(--idle);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+@keyframes game-in { from { opacity: 0; transform: translateY(8px) scale(0.96); } }
+
+/* ==========================================================================
+   GITHUB CONTRIBUTION CALENDAR
+   ========================================================================== */
+
+.gh-card { padding: 16px 18px; }
+
+.gh-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.gh-total {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+.gh-sub { font-size: 0.76rem; color: var(--ink-muted); }
+
+/* The graph scrolls horizontally on narrow screens rather than squashing the
+   cells into unreadable slivers. */
+.gh-graph {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+.gh-weeks {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px;
+  width: max-content;
+}
+
+.gh-cell {
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  background: rgb(var(--ink-rgb) / 0.06);
+  animation: cell-in 0.3s var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--w, 0) * 0.006s);
+  transition: transform 0.12s var(--ease-out-expo);
+}
+.gh-cell:hover { transform: scale(1.45); }
+
+/* Teal ramp rather than GitHub green — the palette only has three accents. */
+.gh-l0 { background: rgb(var(--ink-rgb) / 0.06); }
+.gh-l1 { background: rgb(var(--teal-rgb) / 0.28); }
+.gh-l2 { background: rgb(var(--teal-rgb) / 0.5); }
+.gh-l3 { background: rgb(var(--teal-rgb) / 0.74); }
+.gh-l4 { background: var(--teal); box-shadow: 0 0 6px rgb(var(--teal-rgb) / 0.55); }
+
+@keyframes cell-in { from { opacity: 0; transform: scale(0.4); } }
+
+.gh-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 0.68rem;
+  color: var(--ink-muted);
+}
+.gh-legend .gh-cell { animation: none; }
+
+/* ==========================================================================
+   SCROLL REVEAL
+   Sections fade up as they enter the viewport. The base state is visible —
+   .reveal is only added by JS once IntersectionObserver is confirmed
+   available, so no-JS and reduced-motion both leave content fully shown.
+   ========================================================================== */
+
+.reveal { opacity: 0; transform: translateY(16px); animation: none !important; }
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.4s var(--ease-out-expo), transform 0.4s var(--ease-out-expo);
+}
+
+/* ==========================================================================
+   MARINE SNOW — slow drifting motes, the last ambient layer
+   ========================================================================== */
+
+.snow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.snow i {
+  position: absolute;
+  top: -12px;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: rgb(var(--teal-rgb) / 0.5);
+  animation: snow-fall linear infinite;
+}
+@keyframes snow-fall {
+  0%   { transform: translate3d(0, -4vh, 0); opacity: 0; }
+  10%  { opacity: 0.7; }
+  90%  { opacity: 0.7; }
+  100% { transform: translate3d(14px, 104vh, 0); opacity: 0; }
+}
+@media (max-width: 720px) { .snow { display: none; } }
+
+/* ---- name shimmer ---- */
+
+.pc-display {
+  background: linear-gradient(100deg, var(--ink) 30%, var(--teal) 50%, var(--ink) 70%);
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: name-shimmer 7s ease-in-out infinite;
+}
+@keyframes name-shimmer {
+  0%, 100% { background-position: 130% 0; }
+  50%      { background-position: -30% 0; }
+}
+/* Animations off -> no sweep, so pin a solid colour rather than transparent. */
+@media (prefers-reduced-motion: reduce) {
+  .pc-display { background: none; color: var(--ink); -webkit-text-fill-color: var(--ink); }
+}

@@ -197,20 +197,44 @@
         <details class="pc-games">
           <summary>
             <span>Games I like</span>
-            <span class="pc-games-count">9</span>
+            <span class="pc-games-count">8</span>
           </summary>
           <div class="pc-games-body">
-            <p class="pc-games-fav"><span class="pc-star" aria-hidden="true">★</span> Dispatch <span class="pc-games-note">favourite</span></p>
-            <ul class="pc-games-list">
-              <li>Pragmata</li>
-              <li>OMORI</li>
-              <li>OneShot</li>
-              <li>The Last of Us Part I</li>
-              <li>Minecraft</li>
-              <li>Life is Strange</li>
-              <li>Stray</li>
-              <li>Dispatch</li>
-            </ul>
+            <div class="game-grid">
+              <a class="game game--fav" href="https://store.steampowered.com/app/2592160/" rel="noopener" style="--g:0">
+                <span class="game-art"><img src="https://cdn.cloudflare.steamstatic.com/steam/apps/2592160/library_600x900.jpg" alt="" loading="lazy" width="120" height="180"></span>
+                <span class="game-name">Dispatch</span>
+                <span class="game-star" title="Favourite">★</span>
+              </a>
+              <a class="game" href="https://store.steampowered.com/app/3357650/" rel="noopener" style="--g:1">
+                <span class="game-art game-art--empty" data-letter="P"></span>
+                <span class="game-name">Pragmata</span>
+              </a>
+              <a class="game" href="https://store.steampowered.com/app/1150690/" rel="noopener" style="--g:2">
+                <span class="game-art"><img src="https://cdn.cloudflare.steamstatic.com/steam/apps/1150690/library_600x900.jpg" alt="" loading="lazy" width="120" height="180"></span>
+                <span class="game-name">OMORI</span>
+              </a>
+              <a class="game" href="https://store.steampowered.com/app/420530/" rel="noopener" style="--g:3">
+                <span class="game-art"><img src="https://cdn.cloudflare.steamstatic.com/steam/apps/420530/library_600x900.jpg" alt="" loading="lazy" width="120" height="180"></span>
+                <span class="game-name">OneShot</span>
+              </a>
+              <a class="game" href="https://store.steampowered.com/app/1888930/" rel="noopener" style="--g:4">
+                <span class="game-art"><img src="https://cdn.cloudflare.steamstatic.com/steam/apps/1888930/library_600x900.jpg" alt="" loading="lazy" width="120" height="180"></span>
+                <span class="game-name">The Last of Us Part I</span>
+              </a>
+              <a class="game" href="https://www.minecraft.net/" rel="noopener" style="--g:5">
+                <span class="game-art game-art--empty" data-letter="M"></span>
+                <span class="game-name">Minecraft</span>
+              </a>
+              <a class="game" href="https://store.steampowered.com/app/1265920/" rel="noopener" style="--g:6">
+                <span class="game-art"><img src="https://cdn.cloudflare.steamstatic.com/steam/apps/1265920/library_600x900.jpg" alt="" loading="lazy" width="120" height="180"></span>
+                <span class="game-name">Life is Strange</span>
+              </a>
+              <a class="game" href="https://store.steampowered.com/app/1332010/" rel="noopener" style="--g:7">
+                <span class="game-art"><img src="https://cdn.cloudflare.steamstatic.com/steam/apps/1332010/library_600x900.jpg" alt="" loading="lazy" width="120" height="180"></span>
+                <span class="game-name">Stray</span>
+              </a>
+            </div>
           </div>
         </details>
 
@@ -288,6 +312,28 @@
         <!-- add more links here — copy a <li class="link-item glass"> block above,
              e.g. X/Twitter or email -->
       </ul>
+    </section>
+
+    <section class="section section-gh" aria-label="GitHub contributions">
+      <h2 class="section-title">GitHub</h2>
+      <div class="gh-card glass">
+        <div class="gh-head">
+          <span class="gh-total"><span id="gh-count">0</span> contributions</span>
+          <span class="gh-sub">in the last year</span>
+        </div>
+        <div class="gh-graph" id="gh-graph">
+          <p class="status-loading" id="gh-loading">Loading&hellip;</p>
+        </div>
+        <div class="gh-legend" id="gh-legend" hidden>
+          <span>Less</span>
+          <span class="gh-cell gh-l0"></span>
+          <span class="gh-cell gh-l1"></span>
+          <span class="gh-cell gh-l2"></span>
+          <span class="gh-cell gh-l3"></span>
+          <span class="gh-cell gh-l4"></span>
+          <span>More</span>
+        </div>
+      </div>
     </section>
 
     <section class="section section-lab" aria-label="My homelab">

@@ -630,3 +630,125 @@ fetchPresence();
 connectLanyard();
 updateStatus();
 setInterval(updateStatus, 30_000);
+
+// ---- GitHub contribution calendar ----
+//
+// Data comes from our own /api/github, which proxies and caches upstream so
+// the page doesn't hammer a third-party API once per visitor.
+
+function countUp(node, to) {
+  if (prefersReducedMotion()) { node.textContent = String(to); return; }
+  const DURATION = 700;
+  const start = performance.now();
+  requestAnimationFrame(function step(now) {
+    const t = Math.min(1, (now - start) / DURATION);
+    const eased = 1 - Math.pow(1 - t, 3);
+    node.textContent = String(Math.round(to * eased));
+    if (t < 1) requestAnimationFrame(step);
+  });
+}
+
+async function loadContributions() {
+  const graph = document.getElementById("gh-graph");
+  const loading = document.getElementById("gh-loading");
+  if (!graph) return;
+
+  try {
+    const res = await fetch("/api/github");
+    if (!res.ok) throw new Error("status " + res.status);
+    const data = await res.json();
+    if (!Array.isArray(data.days) || !data.days.length) throw new Error("no days");
+
+    if (loading) loading.remove();
+
+    const weeks = document.createElement("div");
+    weeks.className = "gh-weeks";
+
+    // Pad so the first column starts on the correct weekday row.
+    const firstDay = new Date(data.days[0].date + "T00:00:00Z").getUTCDay();
+    for (let i = 0; i < firstDay; i++) {
+      const pad = el("span", "gh-cell gh-l0");
+      pad.style.visibility = "hidden";
+      weeks.appendChild(pad);
+    }
+
+    data.days.forEach((d, i) => {
+      const cell = el("span", "gh-cell gh-l" + (d.level || 0));
+      cell.style.setProperty("--w", String(Math.floor((i + firstDay) / 7)));
+      cell.title = d.count + (d.count === 1 ? " contribution" : " contributions") + " on " + d.date;
+      weeks.appendChild(cell);
+    });
+
+    graph.appendChild(weeks);
+    // Most recent weeks are the interesting end on a narrow screen.
+    graph.scrollLeft = graph.scrollWidth;
+
+    const count = document.getElementById("gh-count");
+    if (count) countUp(count, data.total || 0);
+
+    const legend = document.getElementById("gh-legend");
+    if (legend) legend.hidden = false;
+  } catch {
+    if (loading) loading.textContent = "Couldn't load contributions.";
+  }
+}
+
+// ---- marine snow ----
+//
+// A handful of slow motes, sized and paced randomly so they don't pulse in
+// unison. Desktop only (the CSS hides it under 720px) and skipped entirely
+// under reduced motion.
+
+function initSnow() {
+  if (prefersReducedMotion()) return;
+  if (window.matchMedia("(max-width: 720px)").matches) return;
+
+  const layer = document.createElement("div");
+  layer.className = "snow";
+  layer.setAttribute("aria-hidden", "true");
+
+  const COUNT = 26;
+  for (let i = 0; i < COUNT; i++) {
+    const mote = document.createElement("i");
+    const size = 1.5 + Math.random() * 2.5;
+    mote.style.left = (Math.random() * 100).toFixed(2) + "%";
+    mote.style.width = size.toFixed(1) + "px";
+    mote.style.height = size.toFixed(1) + "px";
+    mote.style.opacity = (0.25 + Math.random() * 0.45).toFixed(2);
+    mote.style.animationDuration = (16 + Math.random() * 26).toFixed(1) + "s";
+    mote.style.animationDelay = (-Math.random() * 40).toFixed(1) + "s";
+    layer.appendChild(mote);
+  }
+  document.body.appendChild(layer);
+}
+
+// ---- scroll reveal ----
+//
+// Only applied once IntersectionObserver is confirmed present and motion is
+// allowed, so the .reveal opacity:0 state can never strand content on a
+// browser that would not animate it back.
+
+function initReveal() {
+  if (prefersReducedMotion() || !("IntersectionObserver" in window)) return;
+
+  const targets = document.querySelectorAll(".section-gh, .section-lab");
+  if (!targets.length) return;
+
+  const io = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("is-in");
+        io.unobserve(entry.target);
+      }
+    }
+  }, { rootMargin: "0px 0px -8% 0px", threshold: 0.06 });
+
+  for (const t of targets) {
+    t.classList.add("reveal");
+    io.observe(t);
+  }
+}
+
+initSnow();
+initReveal();
+loadContributions();
