@@ -10,6 +10,20 @@ const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 // Animations are ON by default, including when the OS asks for reduced motion
 // — the owner chose that for this site. Anyone can still turn them off with
 // the in-page toggle, and that choice persists.
+// Top-level init calls run in sequence in one script, so an exception in any
+// of them aborts the rest of the file and silently takes out every feature
+// declared below it. The symptom is a scatter of unrelated things failing on
+// one device and working everywhere else — which is what was reported for the
+// phone (no stars, clock stuck at --:--:--). Each entry point runs through
+// this, so one failure costs one feature instead of all of them.
+function safe(name, fn) {
+  try {
+    fn();
+  } catch (err) {
+    console.error("init failed: " + name, err);
+  }
+}
+
 const prefersReducedMotion = () => {
   try {
     if (localStorage.getItem("hi-motion") === "off") return true;
@@ -638,7 +652,7 @@ function renderStatus(services, nodes) {
   const allUp = up === total && total > 0;
   summary.textContent = allUp
     ? "All services online and operational"
-    : up + " of " + total + " services online";
+    : "Some services offline — " + up + " of " + total + " online";
   summary.classList.toggle("is-degraded", !allUp);
   summary.hidden = false;
 }
@@ -662,7 +676,7 @@ async function updateStatus() {
   }
 }
 
-initCursorGlow();
+safe("initCursorGlow", initCursorGlow);
 // Paint the profile straight away from REST so the card is populated on first
 // render, then hand over to the socket for instant live updates.
 fetchPresence();
@@ -699,7 +713,7 @@ function renderLinesAdded(la) {
   // hiding the whole figure.
   if (!la || !la.publishable || !(la.added > 0)) return false;
   const n = la.added;
-  loc.textContent = n.toLocaleString() + " lines added";
+  loc.textContent = n.toLocaleString() + " lines written";
   loc.title =
     n.toLocaleString() + " added, " + la.removed.toLocaleString() +
     " removed across " + la.repos + " public repos in the last year" +
@@ -785,13 +799,15 @@ async function loadContributions() {
 
 function initSnow() {
   if (prefersReducedMotion()) return;
-  if (window.matchMedia("(max-width: 720px)").matches) return;
+  // Phones get a thinner field rather than none — the owner asked for the
+  // drifting motes there too.
+  const narrow = window.matchMedia("(max-width: 720px)").matches;
 
   const layer = document.createElement("div");
   layer.className = "snow";
   layer.setAttribute("aria-hidden", "true");
 
-  const COUNT = 26;
+  const COUNT = narrow ? 14 : 26;
   for (let i = 0; i < COUNT; i++) {
     const mote = document.createElement("i");
     const size = 1.5 + Math.random() * 2.5;
@@ -847,8 +863,8 @@ function initReveal() {
   setTimeout(() => targets.forEach(show), 1500);
 }
 
-initSnow();
-initReveal();
+safe("initSnow", initSnow);
+safe("initReveal", initReveal);
 loadContributions();
 
 // ---- static half of the Discord profile ----
@@ -1028,7 +1044,7 @@ function initMotionToggle() {
   });
 }
 
-initMotionToggle();
+safe("initMotionToggle", initMotionToggle);
 
 // ---- shooting stars ----
 //
@@ -1056,7 +1072,7 @@ function initShootingStars() {
   layer.className = "shooting";
   layer.setAttribute("aria-hidden", "true");
 
-  for (let i = 0; i < (narrow ? 6 : 10); i++) {
+  for (let i = 0; i < (narrow ? 9 : 10); i++) {
     const star = document.createElement("i");
     const [hue, rgb] = HUES[i % HUES.length];
     star.style.setProperty("--star", hue);
@@ -1081,7 +1097,7 @@ function initShootingStars() {
   document.body.appendChild(layer);
 }
 
-initShootingStars();
+safe("initShootingStars", initShootingStars);
 
 // ---- timezone chip ----
 //
@@ -1141,4 +1157,48 @@ function initTimezone() {
   paint(); // so the aria-label is meaningful before any interaction
 }
 
-initTimezone();
+// ---- social stats ----
+//
+// /api/social returns only the sources that actually answered, so a key being
+// absent is the normal case rather than an error: Reddit 403s and Instagram
+// 429s without credentials. Nothing is rendered for a missing source — a
+// plain link is honest, a confident zero is not.
+async function loadSocial() {
+  const slots = document.querySelectorAll(".link-stat[data-social]");
+  if (!slots.length) return;
+
+  let data;
+  try {
+    const res = await fetch("/api/social");
+    if (!res.ok) return;
+    data = await res.json();
+  } catch {
+    return;
+  }
+
+  const num = (n) => (typeof n === "number" ? n.toLocaleString() : String(n));
+  const label = {
+    youtube: (d) => (d.subscribers ? d.subscribers + " subscribers" : null),
+    reddit: (d) => (d.karma != null ? num(d.karma) + " karma" : null),
+    instagram: (d) => (d.followers != null ? num(d.followers) + " followers" : null),
+    facebook: (d) => (d.followers != null ? num(d.followers) + " followers" : null),
+  };
+
+  for (const slot of slots) {
+    const key = slot.dataset.social;
+    const d = data[key];
+    if (!d || !label[key]) continue;
+    const text = label[key](d);
+    if (!text) continue;
+    slot.textContent = text;
+    slot.hidden = false;
+    if (key === "reddit" && d.postKarma != null && d.commentKarma != null) {
+      slot.title = num(d.postKarma) + " post karma, " + num(d.commentKarma) +
+        " comment karma" + (d.since ? ", on Reddit since " + d.since : "");
+    }
+    if (key === "youtube" && d.videos) slot.title = d.videos + " videos";
+  }
+}
+
+safe("initTimezone", initTimezone);
+loadSocial();

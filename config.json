@@ -209,5 +209,10 @@
       "type": "tcp",
       "target": "192.168.1.224:3389"
     }
-  ]
+  ],
+  "social": {
+    "youtube": "hasanismail.",
+    "reddit": "hasanismail_",
+    "instagram": "hasanismail.usa"
+  }
 }

@@ -129,8 +129,11 @@ What holds it together now, all of which matters:
   5000/hour. Nothing requires it; the pacing above is what makes the
   unauthenticated case work.
 
-The figure is labelled "lines added", not "lines written" — it is additions
-across public repos, so it includes lockfiles and excludes private work.
+The figure reads "lines written" in the UI because the owner asked for that
+wording. It is still *additions* across public non-fork repos, so it includes
+lockfiles and excludes private work — the tooltip keeps the precise framing
+("N added, M removed across K public repos in the last year"). Don't silently
+change the label back.
 
 `/api/github` returns `{ user, total, days: [{ date, count, level }] }` —
 all already-public GitHub data, no addresses. It exists as a server-side
@@ -138,6 +141,30 @@ proxy for two reasons: it caches upstream for an hour so the page doesn't
 hit a third-party API once per visitor, and it serves the last good
 response if upstream fails, so a brief outage doesn't blank the graph.
 The username comes from `config.github`.
+
+### /api/social — best-effort, mostly blocked
+
+Returns only the sources that actually answered. A missing key is the normal
+case, not an error, and the page renders a stat only when one is present, so a
+blocked source degrades to a plain link rather than a zero.
+
+Measured, not assumed:
+
+| source | result |
+|---|---|
+| youtube | **works** — the channel page embeds the count; scraped from HTML |
+| reddit | **403** — `/user/<n>/about.json` needs OAuth now; every UA is refused |
+| instagram | **429** — needs a logged-in session |
+| facebook | **not attempted** — a personal profile's follower count is not exposed to logged-out clients at all, so there is no endpoint to call |
+
+Reddit and Instagram are still wired up: each costs one request an hour and
+starts working the day that changes or a credential is supplied. Facebook is
+deliberately absent rather than a scraper that pretends — the link renders
+without a stat.
+
+Scraping HTML is brittle by nature, so every extractor returns `null` on any
+surprise instead of throwing, and a `null` is indistinguishable from "not
+configured" to the client. Handles live in `config.social`.
 
 ---
 
@@ -307,6 +334,12 @@ a licence to add colour anywhere:
    ground; at their true brand values they read as muddy on near-black. Lift a
    new brand colour the same way rather than pasting the official hex.
 
+   **This rule has teeth.** `.link-stat` (the follower/karma pill) was first
+   written with `color: var(--brand)` and measured **4.02:1** for the YouTube
+   red — a real AA failure, caught only by the glyph-mask rig. It is now
+   `--ink` with the brand kept for the tint and border: **8.52:1**. Brand hue
+   tints; it never carries glyphs.
+
 2. **Six ambient blooms** across teal, violet, pink, amber, blue and rose, plus
    a six-stop aurora mesh on `body`. `--blue` `#38bdf8`, `--rose` `#fb7185` and
    `--lime` `#7dd85f` joined the palette for ambient use.
@@ -332,6 +365,26 @@ appears where several blooms overlap.
 the familiar green dots. Level 1 sits at ~1.56:1 against the empty cell, which
 looks wrong until you check GitHub: their own empty-vs-l1 is 1.55:1. It is
 supposed to be that subtle; don't "fix" it.
+
+### The .veil / .cursor-glow positioning regression
+
+Both of these declare `inset` / `top` / `left` but relied on a grouped
+`position: fixed` rule that was deleted along with the 107 dead jellyfish and
+bloom blocks. Neither had a `position` anywhere else in the file, so both fell
+back to `static`, with two consequences that took three rounds to spot:
+
+- `.cursor-glow` became an in-flow 400px block. `top/left` stopped applying, its
+  `transform` moved it relative to a spot **inside the document**, so it scrolled
+  with the page instead of tracking the pointer — reported as "the spotlight on
+  the cursor drifts". It also added ~200px of empty column above the content,
+  which is the blank band that made the desktop page start too low.
+- `.veil` collapsed to a zero-height div. The contrast scrim this design is
+  documented to depend on was not painting **at all**, on any page, for several
+  commits. Restoring it shifted every measured background.
+
+Both now carry `position: fixed` on the elements themselves. If you ever strip
+dead CSS again, check that no surviving selector was sharing a rule with the
+ones you removed — that is exactly how this happened.
 
 ### Backdrop stack — order is load-bearing
 
@@ -449,8 +502,14 @@ near-white and `screen(x, white) == white`, so it was pixel-identical to
 plain alpha compositing while forcing the whole viewport to re-composite
 every frame.
 
-Six stars at a 45% duty cycle leaves roughly a 3% chance of an empty sky,
-against ~37% for the old three stars at 28%.
+Nine stars on a phone and ten on desktop at a 45% duty cycle; the old three at
+28% left an empty sky ~37% of the time.
+
+Marine snow runs on phones too now (14 motes against 26 on desktop) — it stays
+at `z-index: 0`, behind the panels, so on a phone it is only visible in the
+gutters and the open areas above and below the content. That is deliberate:
+motes are *persistent*, and persistent specks over body text cost far more
+legibility than a streak that crosses in a second.
 
 ### Timezone chip
 
@@ -625,9 +684,12 @@ faster for 26 services. Each row is a status dot, the service name, then three
 mono stats right-aligned (24h, 30d, ping) and an optional visit link. Below
 560px the 30d column is hidden rather than letting all three collide.
 
-The summary pill reads "All services online and operational" when everything
-is up, and "N of M services online" with a red-tinted `.is-degraded` variant
-otherwise.
+The summary pill reads "All services online and operational" on a green
+bubble when everything is up, and "Some services offline — N of M online" on
+a red one (`.is-degraded`) otherwise. Both carry a matching status dot via
+`::before`. Measured on the composited pill: the red is `#ffb3c0` at
+**7.21:1**. Note it is a lightened rose, not `--down` — `--down` is a dot
+colour and is not safe for text (see the contrast rule above).
 
 Grid columns are **pinned per breakpoint, not `auto-fill`**: 2 columns on
 mobile, 3 from 600px, 3 on desktop. `auto-fill` packed 3 tracks at 500px and 5
@@ -685,6 +747,16 @@ only because JS gates them:
   `-webkit-text-fill-color`, or the name would vanish entirely.
 
 If you add another, gate it the same way and verify by forcing reduced motion.
+
+### Every top-level init runs through safe()
+
+All the entry points at the bottom of `app.js` are called as
+`safe("initFoo", initFoo)`. They run in sequence in one script, so an exception
+in any of them aborts the rest of the file and silently takes out every feature
+declared **below** it. The symptom is a scatter of unrelated things failing on
+one device while working everywhere else — which is what "the stars and the
+clock don't work on mobile" looked like. One failure should cost one feature,
+not all of them. Add new entry points the same way.
 
 `@media (prefers-reduced-motion: reduce)` disables **all** animation and
 transition including pseudo-elements, and hides the pointer glow.

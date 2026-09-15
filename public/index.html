@@ -83,7 +83,7 @@
         <div class="pc-bio" id="dc-bio">
           <p class="pc-role">Founder &amp; lead developer, OpenMasjid Solutions</p>
           <p class="pc-bio-line">
-            I build <strong>OpenMasjidOS</strong> — free, open-source, self-hosted
+            I built <strong>OpenMasjidOS</strong> — free, open-source, self-hosted
             software that lets any masjid run its own prayer displays, donation
             pages and announcement boards on hardware it owns outright, with no
             vendor and no subscription.
@@ -185,19 +185,23 @@
     <section class="section section-links" aria-label="Links">
       <h2 class="section-title">Links</h2>
       <ul class="link-list">
-        <li class="link-item glass link--github">
-          <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2.1c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.4-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg></span>
-          <span class="link-text">
-            <a href="https://github.com/OpenMasjid-Solutions" rel="noopener">github.com/OpenMasjid-Solutions</a>
-            <span class="link-desc">Open-source masjid management platform</span>
-          </span>
-        </li>
-        <li class="link-item glass link--github">
-          <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2.1c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.4-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg></span>
-          <span class="link-text">
-            <a href="https://github.com/hasan-ismail" rel="noopener">github.com/hasan-ismail</a>
-            <span class="link-desc">Personal projects — The Machine, OpenAudio</span>
-          </span>
+        <!-- One row, two halves: personal on the left, the org on the right.
+             Each half is its own <a>, so the whole half is the hit target. -->
+        <li class="link-item glass link--github link--split">
+          <a class="link-half" href="https://github.com/hasan-ismail" rel="noopener">
+            <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2.1c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.4-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg></span>
+            <span class="link-text">
+              <span class="link-title">hasan-ismail</span>
+              <span class="link-desc">Personal projects</span>
+            </span>
+          </a>
+          <a class="link-half" href="https://github.com/OpenMasjid-Solutions" rel="noopener">
+            <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2.1c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.4-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg></span>
+            <span class="link-text">
+              <span class="link-title">OpenMasjid-Solutions</span>
+              <span class="link-desc">The org</span>
+            </span>
+          </a>
         </li>
         <li class="link-item glass link--web">
           <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c2.6 2.8 4 6 4 9.5s-1.4 6.7-4 9.5c-2.6-2.8-4-6-4-9.5s1.4-6.7 4-9.5Z"/></svg></span>
@@ -210,14 +214,29 @@
           <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a2.1 2.1 0 0 0-3.5-1.5 10.3 10.3 0 0 0-5.6-1.8l1-4.5 3.1.7a1.8 1.8 0 1 0 .2-1.2l-3.7-.8a.6.6 0 0 0-.7.5l-1.1 5.1a10.3 10.3 0 0 0-5.7 1.8A2.1 2.1 0 1 0 3.6 14a4 4 0 0 0 0 .6c0 3.2 3.8 5.8 8.4 5.8s8.4-2.6 8.4-5.8a4 4 0 0 0 0-.6A2.1 2.1 0 0 0 22 12ZM7.5 13.4a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm8.4 4a5.6 5.6 0 0 1-3.9 1.2 5.6 5.6 0 0 1-3.9-1.2.5.5 0 0 1 .7-.7 4.7 4.7 0 0 0 3.2.9 4.7 4.7 0 0 0 3.2-.9.5.5 0 1 1 .7.7Zm-.4-2.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg></span>
           <span class="link-text">
             <a href="https://www.reddit.com/user/hasanismail_/" rel="noopener">reddit.com/u/hasanismail_</a>
-            <span class="link-desc">Reddit</span>
+            <span class="link-desc">Reddit <span class="link-stat" data-social="reddit" hidden></span></span>
           </span>
         </li>
         <li class="link-item glass link--instagram">
           <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.6" cy="6.4" r="1.3" fill="currentColor" stroke="none"/></svg></span>
           <span class="link-text">
             <a href="https://www.instagram.com/hasanismail.usa" rel="noopener">instagram.com/hasanismail.usa</a>
-            <span class="link-desc">Instagram</span>
+            <span class="link-desc">Instagram <span class="link-stat" data-social="instagram" hidden></span></span>
+          </span>
+        </li>
+
+        <li class="link-item glass link--youtube">
+          <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.6-.46-5.33a2.78 2.78 0 0 0-1.95-1.96C18.86 4.25 12 4.25 12 4.25s-6.86 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96C1 8.4 1 12 1 12s0 3.6.46 5.33a2.78 2.78 0 0 0 1.95 1.96c1.73.46 8.59.46 8.59.46s6.86 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96C23 15.6 23 12 23 12Zm-13.2 3.45V8.55L15.5 12Z"/></svg></span>
+          <span class="link-text">
+            <a href="https://www.youtube.com/@hasanismail." rel="noopener">youtube.com/@hasanismail.</a>
+            <span class="link-desc">YouTube <span class="link-stat" data-social="youtube" hidden></span></span>
+          </span>
+        </li>
+        <li class="link-item glass link--facebook">
+          <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.77-3.89 1.1 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z"/></svg></span>
+          <span class="link-text">
+            <a href="https://www.facebook.com/hasan.ismail.695952/" rel="noopener">facebook.com/hasan.ismail</a>
+            <span class="link-desc">Facebook <span class="link-stat" data-social="facebook" hidden></span></span>
           </span>
         </li>
 

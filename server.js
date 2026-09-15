@@ -580,6 +580,134 @@ app.get("/api/status", (req, res) => {
   res.json({ nodes, services: out, generatedAt: new Date().toISOString() });
 });
 
+// ---------- social stats ----------
+//
+// Best-effort and deliberately partial. Each source is fetched server-side,
+// cached for an hour, and simply ABSENT from the response when it fails; the
+// page renders a stat only when one is present, so a blocked source quietly
+// degrades to a plain link rather than an error or a zero.
+//
+// What is actually reachable without credentials, measured rather than assumed:
+//
+//   youtube   works. The channel page embeds the count in its JSON payload.
+//   reddit    403. /user/<n>/about.json now requires OAuth; every UA is
+//             refused. Left in because it costs one request and starts
+//             working the day that changes or a token is supplied.
+//   instagram 429. Needs a logged-in session; the public app-id header is
+//             rate-limited to uselessness from a server IP.
+//   facebook  not attempted. A personal profile's follower count is not
+//             exposed to logged-out clients at all, so there is no endpoint
+//             to call — a scraper here would be dead code pretending to work.
+//
+// Scraping HTML is brittle by nature. Every extractor below therefore returns
+// null on any surprise instead of throwing, and a null is indistinguishable
+// from 'not configured' to the client.
+
+const SOCIAL_TTL_MS = 60 * 60 * 1000;
+const SOCIAL_RETRY_MS = 10 * 60 * 1000;
+let socialCache = { at: 0, data: null };
+let socialRunning = false;
+
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+async function textOf(url, headers = {}, ms = 10000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": BROWSER_UA, ...headers }, signal: ctrl.signal });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function youtubeStats(handle) {
+  const html = await textOf("https://www.youtube.com/@" + encodeURIComponent(handle));
+  if (!html) return null;
+  // The rendered page carries the count as plain text in its embedded JSON.
+  const subs = html.match(/([0-9][0-9.,]*\s*[KMB]?)\s+subscribers/i);
+  const videos = html.match(/([0-9][0-9.,]*\s*[KMB]?)\s+videos/i);
+  if (!subs) return null;
+  const out = { subscribers: subs[1].trim() };
+  if (videos) out.videos = videos[1].trim();
+  return out;
+}
+
+async function redditStats(user) {
+  const body = await textOf(
+    "https://www.reddit.com/user/" + encodeURIComponent(user) + "/about.json",
+    { Accept: "application/json" },
+  );
+  if (!body) return null;
+  try {
+    const d = JSON.parse(body).data;
+    if (!d || typeof d.total_karma !== "number") return null;
+    return {
+      karma: d.total_karma,
+      postKarma: d.link_karma ?? null,
+      commentKarma: d.comment_karma ?? null,
+      since: d.created_utc ? new Date(d.created_utc * 1000).getUTCFullYear() : null,
+    };
+  } catch {
+    return null; // Reddit serves its HTML shell to blocked clients
+  }
+}
+
+async function instagramStats(user) {
+  const body = await textOf(
+    "https://www.instagram.com/api/v1/users/web_profile_info/?username=" + encodeURIComponent(user),
+    { "X-IG-App-ID": "936619743392459" },
+  );
+  if (!body) return null;
+  try {
+    const u = JSON.parse(body).data.user;
+    const n = u?.edge_followed_by?.count;
+    return typeof n === "number" ? { followers: n } : null;
+  } catch {
+    return null;
+  }
+}
+
+function refreshSocial() {
+  if (socialRunning) return;
+  const age = Date.now() - socialCache.at;
+  if (socialCache.data && age < SOCIAL_TTL_MS) return;
+  if (!socialCache.data && age < SOCIAL_RETRY_MS) return;
+
+  socialRunning = true;
+  const social = config.social || {};
+  Promise.all([
+    social.youtube ? youtubeStats(social.youtube) : null,
+    social.reddit ? redditStats(social.reddit) : null,
+    social.instagram ? instagramStats(social.instagram) : null,
+  ])
+    .then(([youtube, reddit, instagram]) => {
+      const data = {};
+      if (youtube) data.youtube = youtube;
+      if (reddit) data.reddit = reddit;
+      if (instagram) data.instagram = instagram;
+      // Keep the previous answer if this round produced nothing at all —
+      // a transient block should not blank stats that were working.
+      if (Object.keys(data).length || !socialCache.data) socialCache = { at: Date.now(), data };
+      else socialCache.at = Date.now();
+    })
+    .catch((err) => {
+      console.error("social stats failed:", err.message);
+      socialCache.at = Date.now();
+    })
+    .finally(() => { socialRunning = false; });
+}
+
+app.get("/api/social", (req, res) => {
+  refreshSocial(); // background; never blocks this response
+  res.json(socialCache.data || {});
+});
+
 app.listen(PORT, () => {
   console.log(`hasanismail-site listening on :${PORT}`);
 
@@ -589,5 +717,8 @@ app.listen(PORT, () => {
   // back minutes later. The tick just drives the retry/TTL logic inside
   // refreshLinesAdded(), which decides for itself whether to do any work.
   refreshLinesAdded();
+  // Same reasoning: the YouTube page fetch is the only social source that
+  // answers, and doing it at boot means the first visitor already has it.
+  refreshSocial();
   setInterval(refreshLinesAdded, 10 * 60 * 1000).unref();
 });
