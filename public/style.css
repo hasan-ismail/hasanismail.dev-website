@@ -137,47 +137,6 @@ html[data-motion="off"] .cursor-glow { display: none !important; }
    or the pointer glow drifts under it.
    ========================================================================== */
 
-.bloom, .jellies, .cursor-glow, .veil {
-  position: fixed;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.bloom {
-  border-radius: 50%;
-  filter: blur(90px);
-}
-.bloom-1 {
-  width: 480px; height: 480px;
-  top: -170px; left: -130px;
-  background: var(--teal);
-  opacity: 0.30;
-  animation: drift1 19s ease-in-out infinite;
-}
-.bloom-2 {
-  width: 420px; height: 420px;
-  top: 28%; right: -170px;
-  background: var(--violet);
-  opacity: 0.26;
-  animation: drift2 23s ease-in-out infinite;
-}
-.bloom-3 {
-  width: 380px; height: 380px;
-  bottom: -150px; left: 18%;
-  background: var(--pink);
-  opacity: 0.20;
-  animation: drift1 21s ease-in-out infinite reverse;
-}
-@keyframes drift1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33%      { transform: translate(50px, 40px) scale(1.05); }
-  66%      { transform: translate(-24px, 62px) scale(0.97); }
-}
-@keyframes drift2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50%      { transform: translate(-44px, 52px) scale(1.06); }
-}
-
 .veil {
   /* The outer stop has a FLOOR, not transparent. With transparent the corners
      had ~0 veil alpha, and the teal bloom at top-left dropped --ink-muted to
@@ -200,77 +159,10 @@ html[data-motion="off"] .cursor-glow { display: none !important; }
 .cursor-glow.is-active { opacity: 1; }
 @media (hover: none), (pointer: coarse) { .cursor-glow { display: none; } }
 
-/* ---- jellyfish ----
-   Motion is split across nested elements so each keyframe touches only
-   transform or opacity: .jelly drifts, .jelly__body bobs, .jf-bell pulses,
-   the strand groups sway. No SVG filters — they are expensive on phone GPUs. */
-
-.jellies { inset: 0; overflow: hidden; }
-
-.jelly {
-  position: absolute;
-  width: var(--jf-w, 120px);
-  color: var(--jf, var(--teal));
-  will-change: transform;
-}
-.jelly__body { animation: jf-bob 7s ease-in-out infinite; }
-.jelly__svg { display: block; width: 100%; height: auto; }
-
-/* Soft halo so each creature reads as luminous rather than drawn. */
-.jelly__body::before {
-  content: "";
-  position: absolute;
-  left: 50%; top: 4%;
-  width: 78%; aspect-ratio: 1;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: radial-gradient(circle, currentColor, transparent 68%);
-  opacity: 0.24;
-  filter: blur(26px);
-  animation: jf-glow 4.5s ease-in-out infinite;
-}
-
-.jf-bell { transform-origin: 50% 76%; animation: jf-pulse 4.5s ease-in-out infinite; }
-.jf-strands--a { transform-origin: 50% 0%; animation: jf-sway 6s ease-in-out infinite; }
-.jf-strands--b { transform-origin: 50% 0%; animation: jf-sway 7s ease-in-out infinite reverse; }
-.jf-arms       { transform-origin: 50% 0%; animation: jf-sway 5.5s ease-in-out infinite; }
-
-@keyframes jf-bob {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50%      { transform: translateY(-16px) rotate(2.2deg); }
-}
-@keyframes jf-pulse {
-  0%, 100% { transform: scaleX(1) scaleY(1); }
-  45%      { transform: scaleX(0.93) scaleY(1.08); }
-}
-@keyframes jf-sway {
-  0%, 100% { transform: skewX(0deg); }
-  50%      { transform: skewX(5deg); }
-}
-@keyframes jf-glow {
-  0%, 100% { opacity: 0.18; }
-  50%      { opacity: 0.32; }
-}
-@keyframes jf-rise-1 {
-  0%   { transform: translate3d(0, 8vh, 0); }
-  100% { transform: translate3d(6vw, -104vh, 0); }
-}
-@keyframes jf-rise-2 {
-  0%   { transform: translate3d(0, 14vh, 0); }
-  100% { transform: translate3d(-7vw, -108vh, 0); }
-}
-
-.jelly--1 { left: 4%;  bottom: -20vh; --jf-w: 128px; --jf: var(--teal);   opacity: 0.75; animation: jf-rise-1 48s linear infinite; }
-.jelly--2 { left: 68%; bottom: -26vh; --jf-w: 168px; --jf: var(--violet); opacity: 0.62; animation: jf-rise-2 62s linear infinite; animation-delay: -30s; }
-.jelly--3 { left: 34%; bottom: -22vh; --jf-w: 92px;  --jf: var(--pink);   opacity: 0.52; animation: jf-rise-1 72s linear infinite; animation-delay: -64s; }
-.jelly--4 { left: 86%; bottom: -24vh; --jf-w: 104px; --jf: var(--teal);   opacity: 0.46; animation: jf-rise-2 57s linear infinite; animation-delay: -12s; }
-.jelly--5 { left: 18%; bottom: -28vh; --jf-w: 76px;  --jf: var(--violet); opacity: 0.40; animation: jf-rise-1 82s linear infinite; animation-delay: -90s; }
-
 /* Phones get three creatures, and the inner detail animations stop. Five sets
    of nested transforms is a real cost on a mobile GPU for backdrop decoration. */
 @media (max-width: 720px) {
-  .jelly--4, .jelly--5 { display: none; }
-  .jf-strands--a, .jf-strands--b, .jf-arms { animation: none; }
+
 }
 
 /* ==========================================================================
@@ -1220,20 +1112,6 @@ html[data-motion="off"] .cursor-glow { display: none !important; }
 .section-gh    .section-title { --accent: var(--teal); }
 
 /* ==========================================================================
-   FOURTH AMBIENT BLOOM
-   Warm amber, low opacity, parked low-left so it adds heat to the palette
-   without sitting behind the reading column.
-   ========================================================================== */
-
-.bloom-4 {
-  width: 340px; height: 340px;
-  bottom: 12%; right: 6%;
-  background: var(--idle);
-  opacity: 0.13;
-  animation: drift2 27s ease-in-out infinite;
-}
-
-/* ==========================================================================
    HOMELAB — tucked behind a toggle, collapsed by default.
    The live summary pill stays on the closed summary so status is still
    glanceable without expanding.
@@ -1402,33 +1280,6 @@ body {
   background-attachment: fixed;
 }
 
-/* Two more blooms, and every bloom gets a little more presence. */
-.bloom-1 { opacity: 0.34; }
-.bloom-2 { opacity: 0.30; }
-.bloom-3 { opacity: 0.24; }
-.bloom-5 {
-  width: 400px; height: 400px;
-  top: 8%; left: 38%;
-  background: var(--blue);
-  opacity: 0.17;
-  animation: drift2 25s ease-in-out infinite reverse;
-}
-.bloom-6 {
-  width: 320px; height: 320px;
-  bottom: 24%; left: -80px;
-  background: var(--rose);
-  opacity: 0.15;
-  animation: drift1 29s ease-in-out infinite;
-}
-
-/* ---- jellyfish: five distinct hues instead of three ---- */
-
-.jelly--1 { --jf: var(--teal); }
-.jelly--2 { --jf: var(--violet); }
-.jelly--3 { --jf: var(--pink); }
-.jelly--4 { --jf: var(--blue); }
-.jelly--5 { --jf: var(--rose); }
-
 /* ---- contribution ramp: a heat map, not a single hue ---- */
 
 /* GitHub's own dark-mode contribution greens — the owner asked for the
@@ -1500,130 +1351,9 @@ body {
   .section-title { color: var(--ink-muted); -webkit-text-fill-color: var(--ink-muted); }
 }
 
-/* ==========================================================================
-   JELLYFISH SWIMMING
-   Real jellyfish move by "pulse and glide": the bell contracts hard and fast,
-   which throws the animal forward, then relaxes slowly while it coasts. The
-   tentacles lag behind and whip on the contraction.
-
-   That rhythm is what sells it, so the timing is deliberately ASYMMETRIC —
-   a short squeeze (~22% of the cycle) and a long relax. Even, sinusoidal
-   pulsing reads as a floating blob, not a swimming animal.
-
-   Five nested layers, each animating transform only, no new markup:
-     .jelly       — the slow drift across the viewport
-     .jelly__body — horizontal weave + banking into the turn
-     .jelly__svg  — the thrust surge, synced to the bell
-     .jf-bell     — the contraction itself
-     strands/arms — the whip, phase-shifted so they trail the bell
-   ========================================================================== */
-
-.jelly__body {
-  animation: jf-weave 13s ease-in-out infinite;
-  transform-origin: 50% 30%;
-}
-
-.jelly__svg {
-  animation: jf-thrust var(--jf-beat, 4.2s) cubic-bezier(0.3, 0, 0.2, 1) infinite;
-}
-
-.jf-bell {
-  transform-origin: 50% 74%;
-  animation: jf-contract var(--jf-beat, 4.2s) cubic-bezier(0.3, 0, 0.2, 1) infinite;
-}
-
-.jf-strands--a,
-.jf-strands--b,
-.jf-arms {
-  transform-origin: 50% 0%;
-  /* Negative delay = start mid-cycle, so the tentacles trail the bell. */
-  animation: jf-whip var(--jf-beat, 4.2s) cubic-bezier(0.3, 0, 0.2, 1) infinite;
-}
-.jf-strands--a { animation-delay: -0.16s; }
-.jf-strands--b { animation-delay: -0.26s; }
-.jf-arms       { animation-delay: -0.1s; }
-
-/* Squeeze fast, coast slow. */
-@keyframes jf-contract {
-  0%   { transform: scaleX(1)    scaleY(1); }
-  14%  { transform: scaleX(0.82) scaleY(1.2); }   /* contraction */
-  30%  { transform: scaleX(1.07) scaleY(0.9); }   /* recoil / bell opens */
-  100% { transform: scaleX(1)    scaleY(1); }     /* long glide back */
-}
-
-/* The surge: a push on the contraction, then a slow sink while coasting. */
-@keyframes jf-thrust {
-  0%   { transform: translateY(0); }
-  16%  { transform: translateY(-14px); }
-  34%  { transform: translateY(-9px); }
-  100% { transform: translateY(0); }
-}
-
-/* Tentacles compress on the thrust and stream out on the glide. */
-@keyframes jf-whip {
-  0%   { transform: skewX(0deg)  scaleY(1); }
-  16%  { transform: skewX(-7deg) scaleY(0.9); }
-  40%  { transform: skewX(6deg)  scaleY(1.06); }
-  100% { transform: skewX(0deg)  scaleY(1); }
-}
-
-/* Lateral weave, with a bank into the direction of travel. */
-@keyframes jf-weave {
-  0%, 100% { transform: translateX(0)     rotate(0deg); }
-  25%      { transform: translateX(26px)  rotate(5deg); }
-  50%      { transform: translateX(6px)   rotate(0deg); }
-  75%      { transform: translateX(-24px) rotate(-5deg); }
-}
-
-/* Each animal gets its own beat so they never pulse in unison. */
-.jelly--1 { --jf-beat: 3.8s; }
-.jelly--2 { --jf-beat: 5.1s; }
-.jelly--3 { --jf-beat: 4.4s; }
-.jelly--4 { --jf-beat: 3.3s; }
-.jelly--5 { --jf-beat: 5.8s; }
-.jelly--6 { --jf-beat: 4.7s; }
-.jelly--7 { --jf-beat: 6.3s; }
-
-/* Two more animals, and a wider spread of hues. */
-.jelly--6 {
-  left: 52%; bottom: -24vh;
-  --jf-w: 112px; --jf: var(--idle);
-  opacity: 0.5;
-  animation: jf-rise-2 68s linear infinite;
-  animation-delay: -40s;
-}
-.jelly--7 {
-  left: 8%; bottom: -30vh;
-  --jf-w: 142px; --jf: var(--lime, #7dd85f);
-  opacity: 0.44;
-  animation: jf-rise-1 92s linear infinite;
-  animation-delay: -18s;
-}
-
-/* Brighter animals — they sit behind the veil, so this costs no text contrast. */
-.jelly--1 { opacity: 0.85; }
-.jelly--2 { opacity: 0.72; }
-.jelly--3 { opacity: 0.62; }
-.jelly--4 { opacity: 0.58; }
-.jelly--5 { opacity: 0.5; }
-
 @media (max-width: 720px) {
-  .jelly--4, .jelly--5, .jelly--6, .jelly--7 { display: none; }
+
 }
-
-/* ==========================================================================
-   MORE COLOUR
-   Everything here is either behind the veil or is non-text chrome, so none of
-   it moves the text-contrast numbers.
-   ========================================================================== */
-
-/* Blooms carry more of the page now. */
-.bloom-1 { opacity: 0.40; }
-.bloom-2 { opacity: 0.36; }
-.bloom-3 { opacity: 0.30; }
-.bloom-4 { opacity: 0.18; }
-.bloom-5 { opacity: 0.22; }
-.bloom-6 { opacity: 0.20; }
 
 /* Richer aurora mesh — six stops instead of four. */
 body {
@@ -1828,14 +1558,6 @@ body {
   --green-rgb: 57 211 83;
 }
 
-/* Blooms lean harder into the four requested hues. */
-.bloom-1 { background: var(--teal);   opacity: 0.42; }
-.bloom-2 { background: var(--violet); opacity: 0.40; }
-.bloom-3 { background: var(--pink);   opacity: 0.34; }
-.bloom-4 { background: var(--green);  opacity: 0.22; }
-.bloom-5 { background: var(--violet); opacity: 0.24; }
-.bloom-6 { background: var(--pink);   opacity: 0.24; }
-
 body {
   background:
     radial-gradient(ellipse 70% 50% at 10% 6%,   rgb(var(--teal-rgb)   / 0.34), transparent 60%),
@@ -1847,15 +1569,6 @@ body {
     radial-gradient(ellipse 120% 90% at 50% 0%, var(--bg-lift), var(--bg) 45%, var(--bg-deep));
   background-attachment: fixed;
 }
-
-/* Jellyfish across the four hues. */
-.jelly--1 { --jf: var(--teal); }
-.jelly--2 { --jf: var(--violet); }
-.jelly--3 { --jf: var(--pink); }
-.jelly--4 { --jf: var(--green); }
-.jelly--5 { --jf: var(--violet); }
-.jelly--6 { --jf: var(--pink); }
-.jelly--7 { --jf: var(--teal); }
 
 /* Snow in the same family. */
 .snow i:nth-child(4n+1) { background: rgb(var(--teal-rgb)   / 0.65); }
@@ -1897,16 +1610,9 @@ body {
 
   /* The ambient layer is the thing forcing those repaints. Freeze it on phones:
      the blooms stay as colour, they just stop moving. */
-  .bloom { animation: none !important; }
 
   /* Inner jellyfish detail animations off (the earlier rule that tried this was
      dead — overridden by later same-specificity rules). */
-  .jf-strands--a,
-  .jf-strands--b,
-  .jf-arms,
-  .jf-bell,
-  .jelly__svg,
-  .jelly__body::before { animation: none !important; }
 
   /* background-attachment: fixed forces main-thread scrolling on mobile.
      Dropping it alone would restretch the percentage-sized gradients over the
@@ -1945,35 +1651,10 @@ body {
   border: 0;
 }
 
-/* ==========================================================================
-   JELLYFISH: NEVER CLIPPED BY THE VIEWPORT EDGE
-   `left: <pct>` positions the animal's LEFT edge, so a jellyfish at left:86%
-   with a 104px body hung ~80px past the right edge and got sliced in half by
-   the `.jellies` clip. The ±26px lateral weave made it worse.
-
-   --jf-x is now a 0..1 position that is mapped into the range where the whole
-   body PLUS its weave still fits, at any viewport width. Nothing to re-tune
-   when widths change.
-   ========================================================================== */
-
-.jelly {
-  --jf-sway: 30px; /* jf-weave translateX peak, plus a little margin */
-  left: calc(var(--jf-sway) + var(--jf-x, 0.5) * (100% - var(--jf-w) - (2 * var(--jf-sway))));
-}
-
-.jelly--1 { --jf-x: 0.02; }
-.jelly--2 { --jf-x: 0.72; }
-.jelly--3 { --jf-x: 0.36; }
-.jelly--4 { --jf-x: 0.95; }
-.jelly--5 { --jf-x: 0.18; }
-.jelly--6 { --jf-x: 0.55; }
-.jelly--7 { --jf-x: 0.08; }
-
 /* Below ~430px even the widest body plus sway is a large share of the screen,
    so shrink the two biggest rather than let the mapping squash them together. */
 @media (max-width: 430px) {
-  .jelly--2 { --jf-w: 124px; }
-  .jelly--7 { --jf-w: 108px; }
+
 }
 
 /* ==========================================================================
@@ -2008,14 +1689,6 @@ body {
   --glass-highlight: rgba(210, 248, 255, 0.11);
 }
 
-/* Ambient layer: brighter and wider in hue. */
-.bloom-1 { opacity: 0.50; background: var(--teal); }
-.bloom-2 { opacity: 0.46; background: var(--violet); }
-.bloom-3 { opacity: 0.40; background: var(--pink); }
-.bloom-4 { opacity: 0.30; background: var(--green); }
-.bloom-5 { opacity: 0.32; background: var(--blue); }
-.bloom-6 { opacity: 0.30; background: var(--pink-lt); }
-
 body {
   background:
     radial-gradient(ellipse 72% 52% at 10% 6%,  rgb(var(--teal-rgb)     / 0.42), transparent 62%),
@@ -2028,15 +1701,6 @@ body {
     radial-gradient(ellipse 120% 90% at 50% 0%, var(--bg-lift), var(--bg) 45%, var(--bg-deep));
   background-attachment: fixed;
 }
-
-/* Jellyfish in the lighter siblings — they read as lit, not drawn. */
-.jelly--1 { --jf: var(--teal-lt);   opacity: 0.9; }
-.jelly--2 { --jf: var(--violet-lt); opacity: 0.8; }
-.jelly--3 { --jf: var(--pink-lt);   opacity: 0.72; }
-.jelly--4 { --jf: var(--green-lt);  opacity: 0.6; }
-.jelly--5 { --jf: var(--blue-lt);   opacity: 0.58; }
-.jelly--6 { --jf: var(--pink-lt);   opacity: 0.56; }
-.jelly--7 { --jf: var(--teal-lt);   opacity: 0.52; }
 
 /* Snow across five hues, brighter. */
 .snow i:nth-child(5n+1) { background: rgb(var(--teal-lt-rgb)   / 0.85); }
@@ -2095,3 +1759,255 @@ body {
 .gh-l2 { background: #30a14e; }
 .gh-l3 { background: #56d364; }
 .gh-l4 { background: #7ee787; box-shadow: 0 0 8px rgba(126, 231, 135, 0.55); }
+
+/* ==========================================================================
+   SHOOTING STARS
+   The streak IS the element: a thin gradient bar, rotated once, then
+   translated along its OWN x-axis. Combining rotate() and translateX() in one
+   transform means the travel happens in rotated space, so the star always
+   moves along the direction it points — no separate angle to keep in sync.
+
+   Long tail-end of the keyframe (the star sits off-screen from 30% to 100%)
+   gives the gaps between appearances, so they read as occasional rather than
+   a constant stream.
+   ========================================================================== */
+
+.shooting {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.shooting i {
+  position: absolute;
+  height: 2px;
+  border-radius: 2px;
+  opacity: 0;
+  background: linear-gradient(to right, transparent, var(--star, #ffffff));
+  box-shadow: 0 0 10px 1px rgb(var(--star-rgb, 255 255 255) / 0.5);
+  animation: shoot linear infinite;
+  will-change: transform, opacity;
+}
+@keyframes shoot {
+  0%   { opacity: 0; transform: rotate(var(--star-a, 32deg)) translateX(-24vw); }
+  4%   { opacity: 1; }
+  26%  { opacity: 1; }
+  32%  { opacity: 0; transform: rotate(var(--star-a, 32deg)) translateX(132vw); }
+  100% { opacity: 0; transform: rotate(var(--star-a, 32deg)) translateX(132vw); }
+}
+
+/* Decoration only — no reason to spend a phone's GPU on it. */
+@media (max-width: 720px) { .shooting { display: none; } }
+
+/* ==========================================================================
+   WIDER PALETTE
+   Four more hues in rotation, used for ambient light, stars and chrome.
+   Text colours are untouched, so the measured contrast floor is unaffected.
+   ========================================================================== */
+
+:root {
+  --amber:   #ffcf6b;
+  --cyan:    #67e8f9;
+  --magenta: #f472d0;
+  --coral:   #ff9c7a;
+  --indigo:  #a5b4fc;
+  --amber-rgb:   255 207 107;
+  --cyan-rgb:    103 232 249;
+  --magenta-rgb: 244 114 208;
+  --coral-rgb:   255 156 122;
+  --indigo-rgb:  165 180 252;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 72% 52% at 10% 6%,  rgb(var(--teal-rgb)    / 0.42), transparent 62%),
+    radial-gradient(ellipse 64% 48% at 90% 15%, rgb(var(--violet-rgb)  / 0.42), transparent 64%),
+    radial-gradient(ellipse 76% 56% at 80% 84%, rgb(var(--pink-rgb)    / 0.38), transparent 62%),
+    radial-gradient(ellipse 62% 50% at 15% 90%, rgb(var(--green-rgb)   / 0.28), transparent 64%),
+    radial-gradient(ellipse 54% 44% at 52% 46%, rgb(var(--cyan-rgb)    / 0.20), transparent 66%),
+    radial-gradient(ellipse 56% 46% at 96% 58%, rgb(var(--magenta-rgb) / 0.22), transparent 64%),
+    radial-gradient(ellipse 50% 40% at 34% 22%, rgb(var(--amber-rgb)   / 0.16), transparent 66%),
+    radial-gradient(ellipse 48% 40% at 68% 8%,  rgb(var(--indigo-rgb)  / 0.18), transparent 66%),
+    radial-gradient(ellipse 46% 38% at 6% 52%,  rgb(var(--coral-rgb)   / 0.14), transparent 66%),
+    radial-gradient(ellipse 120% 90% at 50% 0%, var(--bg-lift), var(--bg) 45%, var(--bg-deep));
+  background-attachment: fixed;
+}
+
+/* Snow cycles seven hues. */
+.snow i:nth-child(7n+1) { background: rgb(var(--teal-lt-rgb)   / 0.85); }
+.snow i:nth-child(7n+2) { background: rgb(var(--green-lt-rgb)  / 0.8); }
+.snow i:nth-child(7n+3) { background: rgb(var(--violet-lt-rgb) / 0.8); }
+.snow i:nth-child(7n+4) { background: rgb(var(--magenta-rgb)   / 0.8); }
+.snow i:nth-child(7n+5) { background: rgb(var(--cyan-rgb)      / 0.8); }
+.snow i:nth-child(7n+6) { background: rgb(var(--amber-rgb)     / 0.75); }
+.snow i:nth-child(7n)   { background: rgb(var(--coral-rgb)     / 0.75); }
+
+/* Instagram brand accent for the new link. */
+.link--instagram { --brand: #ff7ab8; --brand-rgb: 255 122 184; }
+
+/* ==========================================================================
+   BACKDROP ARTWORK + PALETTE
+   The animated jellyfish are gone; the backdrop image supplies both the
+   creatures and the colour.
+
+   The source is a bright piece — measured p99 luminance 0.938, near-white in
+   the light rays — so light text over it sat around 2.7:1. brightness(0.36)
+   plus the 0.30 veil brings the worst case to ink 7.64:1 / muted 4.97:1.
+   Those two numbers are load-bearing: raising either the brightness or
+   lowering the veil drops muted text below AA. Re-measure if you touch them.
+
+   The layer is static (no animation), so the blur/brightness filter is
+   rasterised once rather than per frame.
+   ========================================================================== */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url("backdrop.jpg") center / cover no-repeat;
+  filter: brightness(0.36) saturate(1.12) blur(2px);
+  /* blur() samples past the edges; scale up so no soft border shows. */
+  transform: scale(1.04);
+}
+
+:root {
+  /* Sampled from the artwork itself. */
+  --bg: #0b1733;
+  --bg-deep: #060d1f;
+  --bg-lift: #16254d;
+
+  --teal:   #5fe3f5;   /* the cyan in the tentacles */
+  --violet: #8a8ff0;   /* the periwinkle bells */
+  --pink:   #ff7ad1;   /* the hot pink drift */
+  --blue:   #4fa8e8;   /* the open water */
+  --green:  #7ef0c8;
+  --teal-rgb:   95 227 245;
+  --violet-rgb: 138 143 240;
+  --pink-rgb:   255 122 209;
+  --blue-rgb:    79 168 232;
+  --green-rgb:  126 240 200;
+
+  --teal-lt:   #a6f2fb;
+  --violet-lt: #c0c3ff;
+  --pink-lt:   #ffb3e4;
+  --green-lt:  #b0f8de;
+  --blue-lt:   #a8d8fa;
+  --teal-lt-rgb:   166 242 251;
+  --violet-lt-rgb: 192 195 255;
+  --pink-lt-rgb:   255 179 228;
+  --green-lt-rgb:  176 248 222;
+  --blue-lt-rgb:   168 216 250;
+
+  --amber:   #ffd79a;
+  --cyan:    #7ae8fb;
+  --magenta: #ff8ada;
+  --coral:   #ffa9b8;
+  --indigo:  #b3b8ff;
+  --amber-rgb:   255 215 154;
+  --cyan-rgb:    122 232 251;
+  --magenta-rgb: 255 138 218;
+  --coral-rgb:   255 169 184;
+  --indigo-rgb:  179 184 255;
+
+  /* Glass tuned to the new blue ground. */
+  --glass: rgba(20, 44, 84, 0.58);
+  --glass-strong: rgba(34, 62, 108, 0.74);
+  --glass-border: rgba(166, 242, 251, 0.22);
+  --glass-border-strong: rgba(166, 242, 251, 0.32);
+  --glass-highlight: rgba(214, 246, 255, 0.12);
+
+  --veil: rgba(4, 10, 26, 0.30);
+  --sheen: rgba(95, 227, 245, 0.18);
+  --border-accent: rgba(95, 227, 245, 0.55);
+  --cursor-glow: rgba(122, 232, 251, 0.16);
+  --focus-ring: #ffd79a;
+}
+
+/* The page ground matches the artwork's deep water so there is no seam
+   beyond the image on very tall viewports. */
+body {
+  background: var(--bg);
+  background-attachment: scroll;
+}
+
+/* A flat scrim now, not a radial: the backdrop is a photograph rather than a
+   set of gradients, so the old centre-weighted veil left the corners bright. */
+.veil {
+  inset: 0;
+  background: var(--veil);
+}
+
+/* Link brand accents, re-tuned so they read against the blue ground. */
+.link--github    { --brand: #d5e3f2; --brand-rgb: 213 227 242; }
+.link--web       { --brand: #5fe3f5; --brand-rgb:  95 227 245; }
+.link--oms       { --brand: #7ef0c8; --brand-rgb: 126 240 200; }
+.link--discord   { --brand: #a3a9ff; --brand-rgb: 163 169 255; }
+.link--reddit    { --brand: #ff9a6e; --brand-rgb: 255 154 110; }
+.link--instagram { --brand: #ff8ada; --brand-rgb: 255 138 218; }
+
+/* Section markers across the new palette. */
+.section-links .section-title { --accent: var(--violet-lt); }
+.section-gh    .section-title { --accent: var(--green-lt); }
+.status-group:nth-of-type(1)  { --node-accent: var(--teal-lt); }
+.status-group:nth-of-type(2)  { --node-accent: var(--pink-lt); }
+.status-group:nth-of-type(3)  { --node-accent: var(--amber); }
+
+.profile-card { border-color: rgb(var(--violet-lt-rgb) / 0.34); }
+.gh-card      { border-color: rgb(var(--green-lt-rgb) / 0.28); }
+.lab-summary  { border-color: rgb(var(--teal-lt-rgb) / 0.32); }
+
+/* ==========================================================================
+   CUSTOM STATUS BUBBLE
+   Discord shows the custom status as a speech bubble beside the avatar, so
+   this mirrors that: the avatar and bubble share a flex row, and the bubble
+   carries a small tail pointing back at the avatar.
+   ========================================================================== */
+
+.pc-avatar-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+.pc-avatar-row .pc-avatar-wrap { margin-bottom: 0; flex: 0 0 auto; }
+
+.pc-bubble {
+  position: relative;
+  margin: 10px 0 0;
+  padding: 8px 13px;
+  max-width: 100%;
+  min-width: 0;
+  align-self: center;
+  border-radius: 14px;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  font-size: 0.83rem;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+/* Tail, pointing back at the avatar. Two stacked triangles so the 1px border
+   reads continuously around the corner. */
+.pc-bubble::before,
+.pc-bubble::after {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 50%;
+  width: 0; height: 0;
+  transform: translateY(-50%);
+  border-style: solid;
+  border-width: 6px 7px 6px 0;
+}
+.pc-bubble::before { border-color: transparent var(--glass-border-strong) transparent transparent; }
+.pc-bubble::after  { left: -6px; border-color: transparent var(--glass-strong) transparent transparent; }
+
+/* On a phone the bubble beside an 84px avatar leaves too little room for the
+   text, so it drops under the avatar and loses the tail. */
+@media (max-width: 480px) {
+  .pc-avatar-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .pc-bubble { align-self: flex-start; margin-top: 0; }
+  .pc-bubble::before, .pc-bubble::after { display: none; }
+}

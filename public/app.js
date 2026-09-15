@@ -929,14 +929,11 @@ async function loadDiscordProfile() {
     if (slot) slot.textContent = p.pronouns;
   }
 
-  // About me, verbatim from the Discord profile.
-  const bio = document.getElementById("dc-bio");
-  if (bio && p.bio) {
-    const role = bio.querySelector(".pc-role");
-    bio.textContent = "";
-    if (role) bio.appendChild(role);
-    renderBioInto(bio, p.bio);
-  }
+  // The About Me section is AUTHORED content in index.html, not the Discord
+  // bio — the owner asked for copy about the OpenMasjid role and AsmaTec
+  // instead. renderBioInto() is kept because the Discord bio may be wanted
+  // again, but nothing calls it now; do not re-point it at #dc-bio without
+  // checking, or it will wipe the authored copy on first load.
 
   // Connections. Names and verified state only — the upstream account ids are
   // dropped server-side and never reach the browser.
@@ -1008,3 +1005,44 @@ function initMotionToggle() {
 }
 
 initMotionToggle();
+
+// ---- shooting stars ----
+//
+// Occasional, not constant: each star spends most of its cycle parked
+// off-screen, and the durations/delays are randomised so they never sync up.
+// Desktop only (CSS hides the layer under 720px) and skipped under reduced
+// motion, same as the other ambient layers.
+
+function initShootingStars() {
+  if (prefersReducedMotion()) return;
+  if (window.matchMedia("(max-width: 720px)").matches) return;
+
+  const HUES = [
+    ["#ffffff", "255 255 255"],
+    ["#67e8f9", "103 232 249"],
+    ["#a5b4fc", "165 180 252"],
+    ["#f472d0", "244 114 208"],
+    ["#ffcf6b", "255 207 107"],
+  ];
+
+  const layer = document.createElement("div");
+  layer.className = "shooting";
+  layer.setAttribute("aria-hidden", "true");
+
+  for (let i = 0; i < 5; i++) {
+    const star = document.createElement("i");
+    const [hue, rgb] = HUES[i % HUES.length];
+    star.style.setProperty("--star", hue);
+    star.style.setProperty("--star-rgb", rgb);
+    star.style.setProperty("--star-a", (22 + Math.random() * 22).toFixed(1) + "deg");
+    star.style.top = (Math.random() * 55).toFixed(1) + "%";
+    star.style.left = "-15vw";
+    star.style.width = (90 + Math.random() * 90).toFixed(0) + "px";
+    star.style.animationDuration = (14 + Math.random() * 16).toFixed(1) + "s";
+    star.style.animationDelay = (-Math.random() * 30).toFixed(1) + "s";
+    layer.appendChild(star);
+  }
+  document.body.appendChild(layer);
+}
+
+initShootingStars();

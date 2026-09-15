@@ -304,7 +304,24 @@ Three fixed blurred circles, `filter: blur(90px)`, `pointer-events: none`:
 Keep the bloom `scale()` amplitude ≤1.06 or they expand past their intended
 footprint.
 
-### Jellyfish
+### Backdrop artwork (replaced the jellyfish)
+
+The animated SVG jellyfish were removed;  supplies both
+the creatures and the colour, and the whole palette is sampled from it.
+
+**The two filter numbers are load-bearing.** The source is bright — measured
+p99 luminance 0.938, near-white in the light rays — so light text over it sat
+around 2.7:1.  on  plus the flat  at 0.30
+brings the worst case to ink 7.64:1 / muted 4.97:1. Raising the brightness or
+lowering the veil drops muted text below AA. Re-measure before changing either.
+
+The layer never animates, so its blur/brightness filter rasterises once rather
+than per frame.  hides the soft edge  leaves.
+
+The old jellyfish/bloom CSS was stripped rather than left dead: 107 rule
+blocks, 72.3KB -> 59.8KB, and index.html 35KB -> 15KB.
+
+### Jellyfish (removed — kept for history)
 
 **They swim, they do not float.** Real jellyfish move by pulse-and-glide: the
 bell contracts hard and fast, throwing the animal forward, then relaxes slowly

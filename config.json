@@ -1,40 +1,213 @@
 {
   "discordUserId": "761016030892916737",
   "github": "hasan-ismail",
-  "githubOrgs": ["OpenMasjid-Solutions"],
+  "githubOrgs": [
+    "OpenMasjid-Solutions"
+  ],
   "nodes": [
-    { "id": "node1", "label": "Node 1 — lxcpool" },
-    { "id": "node2", "label": "Node 2" }
+    {
+      "id": "node1",
+      "label": "Node 1 — lxcpool"
+    },
+    {
+      "id": "node2",
+      "label": "Node 2"
+    },
+    {
+      "id": "node3",
+      "label": "Node 3 — OpenMasjid CI/CD"
+    }
   ],
   "services": [
-    { "id": "hasanismail-dev", "name": "hasanismail.dev", "node": "node1", "type": "http", "target": "http://192.168.1.200:3300" },
-    { "id": "openmasjidos", "name": "OpenMasjidOS", "node": "node1", "type": "tcp", "target": "192.168.1.18:443" },
-    { "id": "openmasjid-solutions", "name": "OpenMasjid Solutions", "node": "node1", "type": "http", "target": "https://openmasjidsolutions.org", "publicUrl": "https://openmasjidsolutions.org" },
-
-    { "id": "jellyfin", "name": "Jellyfin", "node": "node1", "type": "http", "target": "http://192.168.1.146:8096/health" },
-    { "id": "jellyseerr", "name": "Jellyseerr", "node": "node1", "type": "http", "target": "http://192.168.1.126:5055" },
-    { "id": "seanime", "name": "Seanime", "node": "node1", "type": "http", "target": "http://192.168.1.53:43211" },
-    { "id": "radarr", "name": "Radarr", "node": "node1", "type": "http", "target": "http://192.168.1.11:7878" },
-    { "id": "sonarr", "name": "Sonarr", "node": "node1", "type": "http", "target": "http://192.168.1.28:8989" },
-    { "id": "prowlarr", "name": "Prowlarr", "node": "node1", "type": "http", "target": "http://192.168.1.219:9696" },
-    { "id": "sonobarr", "name": "Sonobarr", "node": "node1", "type": "http", "target": "http://192.168.1.17:5000" },
-    { "id": "maintainerr", "name": "Maintainerr", "node": "node1", "type": "http", "target": "http://192.168.1.133:6246" },
-    { "id": "sabnzbd", "name": "SABnzbd", "node": "node1", "type": "http", "target": "http://192.168.1.215:7777" },
-    { "id": "torbox", "name": "TorBox", "node": "node1", "type": "http", "target": "http://192.168.1.201:8080" },
-    { "id": "byparr", "name": "Byparr", "node": "node1", "type": "http", "target": "http://192.168.1.176:8191" },
-    { "id": "wizarr", "name": "Wizarr", "node": "node1", "type": "http", "target": "http://192.168.1.49:5690" },
-
-    { "id": "homarr", "name": "Homarr", "node": "node1", "type": "http", "target": "http://192.168.1.33:7575" },
-    { "id": "vaultwarden", "name": "Vaultwarden", "node": "node1", "type": "tcp", "target": "192.168.1.227:8000" },
-    { "id": "changedetection", "name": "changedetection.io", "node": "node1", "type": "http", "target": "http://192.168.1.29:5000" },
-    { "id": "openspeedtest", "name": "OpenSpeedTest", "node": "node1", "type": "http", "target": "http://192.168.1.51:3000" },
-    { "id": "anytype-server", "name": "Anytype Server", "node": "node1", "type": "tcp", "target": "192.168.1.246:6379" },
-    { "id": "newtarr", "name": "Newtarr", "node": "node1", "type": "http", "target": "http://192.168.1.212:9705" },
-    { "id": "proxmox-backup-server", "name": "Proxmox Backup Server", "node": "node1", "type": "tcp", "target": "192.168.1.82:8007" },
-    { "id": "mycontainer", "name": "mycontainer", "node": "node1", "type": "tcp", "target": "192.168.1.148:443" },
-    { "id": "osint", "name": "OSINT", "node": "node1", "type": "tcp", "target": "192.168.1.7:22" },
-    { "id": "postiebot", "name": "PostieBot", "node": "node1", "type": "tcp", "target": "192.168.1.155:22" },
-
-    { "id": "immich", "name": "Immich", "node": "node2", "type": "http", "target": "http://192.168.1.98:2283" }
+    {
+      "id": "hasanismail-dev",
+      "name": "hasanismail.dev",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.200:3300"
+    },
+    {
+      "id": "openmasjidos",
+      "name": "OpenMasjidOS",
+      "node": "node1",
+      "type": "tcp",
+      "target": "192.168.1.18:443"
+    },
+    {
+      "id": "openmasjid-solutions",
+      "name": "OpenMasjid Solutions",
+      "node": "node1",
+      "type": "http",
+      "target": "https://openmasjidsolutions.org",
+      "publicUrl": "https://openmasjidsolutions.org"
+    },
+    {
+      "id": "jellyfin",
+      "name": "Jellyfin",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.146:8096/health"
+    },
+    {
+      "id": "jellyseerr",
+      "name": "Jellyseerr",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.126:5055"
+    },
+    {
+      "id": "seanime",
+      "name": "Seanime",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.53:43211"
+    },
+    {
+      "id": "radarr",
+      "name": "Radarr",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.11:7878"
+    },
+    {
+      "id": "sonarr",
+      "name": "Sonarr",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.28:8989"
+    },
+    {
+      "id": "prowlarr",
+      "name": "Prowlarr",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.219:9696"
+    },
+    {
+      "id": "sonobarr",
+      "name": "Sonobarr",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.17:5000"
+    },
+    {
+      "id": "maintainerr",
+      "name": "Maintainerr",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.133:6246"
+    },
+    {
+      "id": "sabnzbd",
+      "name": "SABnzbd",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.215:7777"
+    },
+    {
+      "id": "torbox",
+      "name": "TorBox",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.201:8080"
+    },
+    {
+      "id": "byparr",
+      "name": "Byparr",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.176:8191"
+    },
+    {
+      "id": "wizarr",
+      "name": "Wizarr",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.49:5690"
+    },
+    {
+      "id": "homarr",
+      "name": "Homarr",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.33:7575"
+    },
+    {
+      "id": "vaultwarden",
+      "name": "Vaultwarden",
+      "node": "node1",
+      "type": "tcp",
+      "target": "192.168.1.227:8000"
+    },
+    {
+      "id": "changedetection",
+      "name": "changedetection.io",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.29:5000"
+    },
+    {
+      "id": "openspeedtest",
+      "name": "OpenSpeedTest",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.51:3000"
+    },
+    {
+      "id": "anytype-server",
+      "name": "Anytype Server",
+      "node": "node1",
+      "type": "tcp",
+      "target": "192.168.1.246:6379"
+    },
+    {
+      "id": "newtarr",
+      "name": "Newtarr",
+      "node": "node1",
+      "type": "http",
+      "target": "http://192.168.1.212:9705"
+    },
+    {
+      "id": "proxmox-backup-server",
+      "name": "Proxmox Backup Server",
+      "node": "node1",
+      "type": "tcp",
+      "target": "192.168.1.82:8007"
+    },
+    {
+      "id": "mycontainer",
+      "name": "mycontainer",
+      "node": "node1",
+      "type": "tcp",
+      "target": "192.168.1.148:443"
+    },
+    {
+      "id": "osint",
+      "name": "OSINT",
+      "node": "node1",
+      "type": "tcp",
+      "target": "192.168.1.7:22"
+    },
+    {
+      "id": "postiebot",
+      "name": "PostieBot",
+      "node": "node1",
+      "type": "tcp",
+      "target": "192.168.1.155:22"
+    },
+    {
+      "id": "immich",
+      "name": "Immich",
+      "node": "node2",
+      "type": "http",
+      "target": "http://192.168.1.98:2283"
+    },
+    {
+      "id": "openmasjid-cicd",
+      "name": "OpenMasjid CI/CD",
+      "node": "node3",
+      "type": "tcp",
+      "target": "192.168.1.224:3389"
+    }
   ]
 }
