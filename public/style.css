@@ -1254,3 +1254,92 @@ h1, h2, h3, h4 { font-family: 'Outfit', system-ui, sans-serif; font-weight: 600;
 
 .lab-body { padding-top: 14px; animation: rise-in-sm 0.28s var(--ease-out-expo) backwards; }
 .lab .status-summary { margin-bottom: 0; }
+
+/* ==========================================================================
+   DISCORD PROFILE PARITY
+   The card mirrors Discord's own profile panel: real banner, badge icon row,
+   verbatim About Me, and the connections list.
+   ========================================================================== */
+
+:root { --dc-accent: var(--teal); }
+
+.pc-banner { height: 118px; }
+.pc-banner.has-image { background: var(--bg-lift); }
+.pc-banner-img {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Fade the banner into the card so the avatar cut-out doesn't sit on a hard seam. */
+.pc-banner.has-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 55%, rgba(6, 15, 26, 0.85));
+  pointer-events: none;
+}
+
+.pc-display { font-size: 1.5rem; }
+
+/* Badge icons, as Discord shows them. */
+.pc-badges.is-icons {
+  gap: 4px;
+  padding: 5px 8px;
+  width: fit-content;
+  border-radius: 9px;
+  background: rgb(var(--ink-rgb) / 0.05);
+  border: 1px solid var(--glass-border);
+}
+.pc-badge-icon {
+  display: grid;
+  place-items: center;
+  width: 22px; height: 22px;
+  border-radius: 5px;
+  transition: transform 0.16s var(--ease-out-expo), background 0.16s ease;
+}
+.pc-badge-icon img { width: 18px; height: 18px; display: block; }
+a.pc-badge-icon:hover { transform: translateY(-2px) scale(1.12); background: rgb(var(--ink-rgb) / 0.09); }
+
+/* About me — verbatim, line breaks preserved, URLs linked. */
+.pc-bio-line {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+.pc-bio-line.is-blank { height: 0.5em; }
+.pc-bio-link {
+  color: var(--dc-accent);
+  border-bottom: 1px solid rgb(var(--teal-rgb) / 0.3);
+  transition: border-color 0.16s ease, color 0.16s ease;
+  word-break: break-word;
+}
+.pc-bio-link:hover { border-color: var(--dc-accent); }
+.pc-role { color: var(--ink); font-weight: 500; }
+
+/* Connections */
+.pc-connections { display: flex; flex-direction: column; gap: 5px; }
+.pc-connection {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: rgb(var(--ink-rgb) / 0.04);
+  border: 1px solid var(--glass-border);
+  font-size: 0.8rem;
+  color: var(--ink);
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+.pc-connection:hover { border-color: var(--border-accent); background: rgb(var(--ink-rgb) / 0.07); }
+.pc-conn-type {
+  font-size: 0.62rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  min-width: 52px;
+}
+.pc-conn-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-conn-verified { color: var(--up); font-size: 0.78rem; }

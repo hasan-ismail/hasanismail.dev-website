@@ -128,6 +128,11 @@ function formatElapsed(ms) {
 
 let liveNodes = []; // elements needing a 1s tick (elapsed counters, progress bars)
 
+// Set once /api/profile has supplied the richer data. renderProfile() runs on
+// every presence update, so without these it would overwrite the icon badges
+// with public_flags text pills and re-show the nameplate over the banner.
+const richProfile = { badges: false, banner: false };
+
 function renderProfile(d) {
   const user = d.discord_user || {};
   const status = d.discord_status || "offline";
@@ -182,7 +187,7 @@ function renderProfile(d) {
   // Animated nameplate, skipped entirely under reduced motion.
   const plate = document.getElementById("dc-nameplate");
   const plates = nameplateUrls(user);
-  if (plates && !prefersReducedMotion()) {
+  if (plates && !prefersReducedMotion() && !richProfile.banner) {
     if (plate.getAttribute("src") !== plates.video) plate.src = plates.video;
     plate.hidden = false;
   } else {
@@ -190,7 +195,7 @@ function renderProfile(d) {
   }
 
   const badges = document.getElementById("dc-badges");
-  if (badges) {
+  if (badges && !richProfile.badges) {
     badges.textContent = "";
     for (const label of badgesFor(user)) badges.appendChild(el("span", "pc-badge", label));
   }
@@ -766,3 +771,134 @@ function initReveal() {
 initSnow();
 initReveal();
 loadContributions();
+
+// ---- static half of the Discord profile ----
+//
+// Lanyard covers live presence; it has no banner, About Me, badges or
+// connections. Those come from our own /api/profile, which proxies and caches
+// a public profile endpoint server-side.
+
+const CONNECTION_LABEL = {
+  domain: "Domain", github: "GitHub", reddit: "Reddit", steam: "Steam",
+  xbox: "Xbox", youtube: "YouTube", facebook: "Facebook", twitter: "X",
+  spotify: "Spotify", twitch: "Twitch", instagram: "Instagram",
+};
+
+// Render bio text with URLs linked. Built from DOM nodes, never innerHTML —
+// the text is remote content and must not be able to inject markup.
+function renderBioInto(container, text) {
+  const URL_RE = /https?:\/\/[^\s<>"']+/g;
+  for (const rawLine of String(text).split("\n")) {
+    const line = document.createElement("p");
+    line.className = "pc-bio-line";
+    let last = 0;
+    let m;
+    URL_RE.lastIndex = 0;
+    while ((m = URL_RE.exec(rawLine)) !== null) {
+      if (m.index > last) line.appendChild(document.createTextNode(rawLine.slice(last, m.index)));
+      const a = document.createElement("a");
+      a.href = m[0];
+      a.rel = "noopener";
+      a.className = "pc-bio-link";
+      a.textContent = m[0].replace(/^https?:\/\//, "");
+      line.appendChild(a);
+      last = m.index + m[0].length;
+    }
+    if (last < rawLine.length) line.appendChild(document.createTextNode(rawLine.slice(last)));
+    if (!rawLine.trim()) line.classList.add("is-blank");
+    container.appendChild(line);
+  }
+}
+
+async function loadDiscordProfile() {
+  let p;
+  try {
+    const res = await fetch("/api/profile");
+    if (!res.ok) throw new Error("status " + res.status);
+    p = await res.json();
+  } catch {
+    return; // the card still works from Lanyard alone
+  }
+
+  // Real profile banner, in place of the gradient.
+  if (p.banner && p.id) {
+    const ext = p.banner.startsWith("a_") ? "gif" : "png";
+    const img = el("img", "pc-banner-img");
+    img.src = CDN + "/banners/" + p.id + "/" + p.banner + "." + ext + "?size=600";
+    img.alt = "";
+    hideOnError(img);
+    const banner = document.querySelector(".pc-banner");
+    if (banner) {
+      banner.prepend(img);
+      banner.classList.add("has-image");
+      richProfile.banner = true;
+      // The nameplate would sit on top of the artwork and muddy it.
+      const plate = document.getElementById("dc-nameplate");
+      if (plate) plate.hidden = true;
+    }
+  }
+
+  // Accent colour drives the name and the banner edge.
+  if (typeof p.accentColor === "number") {
+    const hex = "#" + p.accentColor.toString(16).padStart(6, "0");
+    document.documentElement.style.setProperty("--dc-accent", hex);
+  }
+
+  // Badge icons, with Discord's own descriptions as tooltips.
+  const badges = document.getElementById("dc-badges");
+  if (badges && p.badges && p.badges.length) {
+    badges.textContent = "";
+    badges.classList.add("is-icons");
+    richProfile.badges = true;
+    for (const b of p.badges) {
+      if (!b.icon) continue;
+      const node = b.link ? el("a", "pc-badge-icon") : el("span", "pc-badge-icon");
+      if (b.link) { node.href = b.link; node.rel = "noopener"; }
+      node.title = b.description || b.id;
+      const img = el("img");
+      img.src = CDN + "/badge-icons/" + b.icon + ".png";
+      img.alt = b.description || b.id;
+      img.loading = "lazy";
+      hideOnError(img);
+      node.appendChild(img);
+      badges.appendChild(node);
+    }
+  }
+
+  // Pronouns — this is where "raid is backup" actually lives.
+  if (p.pronouns) {
+    const slot = document.getElementById("dc-pronouns");
+    if (slot) slot.textContent = p.pronouns;
+  }
+
+  // About me, verbatim from the Discord profile.
+  const bio = document.getElementById("dc-bio");
+  if (bio && p.bio) {
+    const role = bio.querySelector(".pc-role");
+    bio.textContent = "";
+    if (role) bio.appendChild(role);
+    renderBioInto(bio, p.bio);
+  }
+
+  // Connections. Names and verified state only — the upstream account ids are
+  // dropped server-side and never reach the browser.
+  const conns = document.getElementById("dc-connections");
+  const connLabel = document.getElementById("dc-conn-label");
+  if (conns && p.connections && p.connections.length) {
+    conns.textContent = "";
+    for (const c of p.connections) {
+      const row = el("div", "pc-connection");
+      row.appendChild(el("span", "pc-conn-type", CONNECTION_LABEL[c.type] || c.type));
+      row.appendChild(el("span", "pc-conn-name", c.name));
+      if (c.verified) {
+        const tick = el("span", "pc-conn-verified", "✓");
+        tick.title = "Verified";
+        row.appendChild(tick);
+      }
+      conns.appendChild(row);
+    }
+    if (connLabel) connLabel.hidden = false;
+  }
+}
+
+loadDiscordProfile();

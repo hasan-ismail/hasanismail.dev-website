@@ -310,6 +310,23 @@ down by ×0.8 at the trough, which is why the base is 0.85 rather than 0.6 — a
 
 ### Profile card
 
+**Static half comes from `/api/profile`.** Lanyard has no banner, About Me,
+badges or connections, so the server proxies a public profile endpoint
+(`dcdn.dstn.to`) and caches it for 30 minutes. It is **sanitised on the way
+out**: connection `type`/`name`/`verified` are what Discord already shows, but
+the raw account ids upstream returns are dropped server-side and never reach
+the browser.
+
+`renderProfile()` (Lanyard, live) and `loadDiscordProfile()` (static) both
+write to the same card, and Lanyard re-runs on every presence change. The
+`richProfile` flags stop it overwriting the icon badges with `public_flags`
+text pills, and stop it re-showing the nameplate over the real banner. Keep
+those guards if you touch either function.
+
+About Me is rendered **node by node, never `innerHTML`** — it is remote text
+and must not be able to inject markup. URLs are auto-linked.
+
+
 **The bio and the live Discord profile are one merged surface** —
 `.profile-card`, `pc-*` classes — laid out to mirror Discord's own profile
 panel: banner (with the animated nameplate webm over it) → avatar with APNG

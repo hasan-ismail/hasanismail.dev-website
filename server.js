@@ -224,6 +224,7 @@ setInterval(runChecks, CHECK_INTERVAL_MS);
 // once per visitor, and so a brief upstream outage doesn't blank the graph.
 // The upstream needs no token; everything here is already-public data.
 
+const DISCORD_USER_ID = config.discordUserId || "761016030892916737";
 const GITHUB_USER = config.github || "hasan-ismail";
 const GITHUB_TTL_MS = 60 * 60 * 1000; // 1 hour
 let githubCache = { at: 0, data: null };
@@ -260,6 +261,68 @@ app.get("/api/github", async (req, res) => {
     // Serve stale rather than nothing — a year of history doesn't go bad fast.
     if (githubCache.data) return res.json(githubCache.data);
     res.status(503).json({ error: "contributions unavailable" });
+  }
+});
+
+// ---------- Discord profile (banner, About Me, badges, connections) ----------
+//
+// Lanyard gives live presence but no banner and no About Me. This proxies a
+// public profile endpoint for the static half of the card, cached hard because
+// it changes rarely. Sanitised on the way out: connection *names* are what
+// Discord already shows on the profile, but the raw account ids it returns are
+// not, so they are dropped here rather than shipped to the browser.
+
+const DISCORD_PROFILE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+let profileCache = { at: 0, data: null };
+
+async function fetchDiscordProfile() {
+  const url = `https://dcdn.dstn.to/profile/${encodeURIComponent(DISCORD_USER_ID)}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error("upstream " + res.status);
+    const j = await res.json();
+    const u = j.user || {};
+    const p = j.user_profile || {};
+    return {
+      id: u.id,
+      banner: u.banner || null,
+      bannerColor: u.banner_color || null,
+      accentColor: typeof p.accent_color === "number" ? p.accent_color : null,
+      themeColors: Array.isArray(p.theme_colors) ? p.theme_colors : null,
+      pronouns: p.pronouns || null,
+      bio: p.bio || u.bio || "",
+      premiumType: j.premium_type || 0,
+      badges: (j.badges || []).map((b) => ({
+        id: b.id,
+        description: b.description || "",
+        icon: b.icon || null,
+        link: b.link || null,
+      })),
+      // type/name/verified only — the raw ids are deliberately not forwarded.
+      connections: (j.connected_accounts || []).map((c) => ({
+        type: c.type,
+        name: c.name,
+        verified: !!c.verified,
+      })),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+app.get("/api/profile", async (req, res) => {
+  const fresh = Date.now() - profileCache.at < DISCORD_PROFILE_TTL_MS;
+  if (fresh && profileCache.data) return res.json(profileCache.data);
+  try {
+    const data = await fetchDiscordProfile();
+    profileCache = { at: Date.now(), data };
+    res.json(data);
+  } catch (err) {
+    console.error("discord profile fetch failed:", err.message);
+    if (profileCache.data) return res.json(profileCache.data);
+    res.status(503).json({ error: "profile unavailable" });
   }
 });
 
