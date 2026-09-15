@@ -212,9 +212,28 @@ also text-safe at 10.3:1.
 | `--wave-opacity` | `0.85` | base opacity of the wave motif |
 | `--focus-ring` | `#e6b054` | focus outline |
 
-Three accent hues only — teal, violet, pink — used **solely** as ambient glow
-(blooms, jellyfish tint, glow rings). Never a flat card fill, never a fourth.
-The ink pair and the semantic four are a separate, non-negotiable group.
+Teal, violet and pink remain the core accents, used as ambient glow (blooms,
+jellyfish tint, glow rings) and never as a flat card fill. The ink pair and
+the semantic four are a separate, non-negotiable group.
+
+**Two deliberate additions to the original three-accent rule** — the owner
+asked for more colour; the page read as monochrome teal. Both are scoped, not
+a licence to add colour anywhere:
+
+1. **Per-link brand accents.** Each `.link-item` sets `--brand` / `--brand-rgb`
+   (`link--github` `#c9d6e4`, `link--oms` `#22d07f`, `link--web` `#22d3c4`,
+   `link--discord` `#7f8cff`, `link--reddit` `#ff6a33`). Brand colour may tint
+   the icon, the icon chip, the left edge bar, the hover border, the hover glow
+   and the sheen — **never a panel fill**, and link *text* stays `--ink`, so
+   contrast never depends on the brand hue.
+
+   Discord blurple `#5865f2` and Reddit `#ff4500` were both **lifted** for this
+   ground; at their true brand values they read as muddy on near-black. Lift a
+   new brand colour the same way rather than pasting the official hex.
+
+2. **A fourth ambient bloom** (`.bloom-4`, amber `--idle`, opacity 0.13) parked
+   bottom-right, away from the reading column, to warm a palette that was all
+   cool hues.
 
 Glow ring alphas are `0.24`, not the `0.16` the light theme used: a 16% halo is
 nearly invisible on near-black.
@@ -340,9 +359,14 @@ Details worth not rediscovering:
 
 ### Status cards — "My homelab"
 
-Deliberately the **last** section and deliberately compact: one small glass tile
-per container, grouped by node, with a name, a status dot and three mono
-readouts (24h, 30d, ping).
+**Collapsed behind a `<details class="lab">`, closed by default.** Twenty-six
+tiles dominated the page; the owner asked for it tucked away. The live
+`#status-summary` pill ("26/26 services up") sits on the *closed* summary row,
+so status stays glanceable without expanding — keep it there if you restyle
+this, that pill is the whole point of hiding the rest.
+
+Inside: one small glass tile per container, grouped by node, with a name, a
+status dot and three mono readouts (24h, 30d, ping).
 
 Grid columns are **pinned per breakpoint, not `auto-fill`**: 2 columns on
 mobile, 3 from 600px, 3 on desktop. `auto-fill` packed 3 tracks at 500px and 5
@@ -386,8 +410,14 @@ covers lift on hover, and the display name carries a slow gradient shimmer.
 only because JS gates them:
 
 - `.reveal` (scroll reveal on the GitHub and homelab sections) — `initReveal()`
-  returns early unless `IntersectionObserver` exists *and* motion is allowed,
-  so the class is never applied where it couldn't be undone.
+  returns early unless `IntersectionObserver` exists *and* motion is allowed.
+
+  **That gate alone was not enough and it shipped broken once.** The observer
+  existing does not mean it *fires* — in a throttled tab or a headless
+  renderer it may not, and the contribution graph sat at `opacity: 0`
+  permanently. `initReveal()` now also reveals anything already on screen at
+  load, and has an unconditional `setTimeout(…, 1500)` failsafe. Keep the
+  failsafe: the worst case becomes a missed animation instead of lost content.
 - `.pc-display`'s shimmer sets `color: transparent` for the gradient clip; the
   reduced-motion block pins it back to a solid `--ink` with
   `-webkit-text-fill-color`, or the name would vanish entirely.

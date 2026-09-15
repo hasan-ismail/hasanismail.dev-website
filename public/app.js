@@ -734,10 +734,12 @@ function initReveal() {
   const targets = document.querySelectorAll(".section-gh, .section-lab");
   if (!targets.length) return;
 
+  const show = (node) => node.classList.add("is-in");
+
   const io = new IntersectionObserver((entries) => {
     for (const entry of entries) {
       if (entry.isIntersecting) {
-        entry.target.classList.add("is-in");
+        show(entry.target);
         io.unobserve(entry.target);
       }
     }
@@ -746,7 +748,19 @@ function initReveal() {
   for (const t of targets) {
     t.classList.add("reveal");
     io.observe(t);
+    // Already on screen at load? Reveal on the next frame rather than waiting
+    // for the observer's first callback.
+    if (t.getBoundingClientRect().top < window.innerHeight) {
+      requestAnimationFrame(() => show(t));
+    }
   }
+
+  // Failsafe. `.reveal` sets opacity:0, so if the observer never fires — a
+  // throttled background tab, a headless renderer, anything unexpected — the
+  // content would stay invisible permanently. Revealing unconditionally after
+  // a short delay means the worst case is a missed animation, never lost
+  // content.
+  setTimeout(() => targets.forEach(show), 1500);
 }
 
 initSnow();
