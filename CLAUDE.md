@@ -142,6 +142,25 @@ hit a third-party API once per visitor, and it serves the last good
 response if upstream fails, so a brief outage doesn't blank the graph.
 The username comes from `config.github`.
 
+### The split link row and `.link-item a`
+
+`.link-item a` is written for single-link rows and beats `.link-half` on
+specificity (0,1,1 against 0,1,0). It was imposing three things that broke
+the split GitHub row outright:
+
+- `display: block` — so the halves were never flex containers at all and each
+  icon stacked above its label. That was the whole of "half and half github
+  looks weird"; it was never a spacing problem, and no amount of
+  `justify-content` could have fixed it.
+- a single ellipsised `nowrap` line.
+- `::before`, a full-bleed overlay that makes a whole pill clickable. With
+  **two** anchors in one row the second overlay covered the entire row and
+  swallowed every click meant for the first half.
+
+`.link-item a.link-half` resets all of it and kills both pseudo-elements. A
+half is itself the anchor and fills its side of the row, so it is already its
+own hit target. Check `elementFromPoint` on each half after touching this.
+
 ### /api/social — best-effort, mostly blocked
 
 Returns only the sources that actually answered. A missing key is the normal
@@ -472,6 +491,25 @@ regressions. The pass cost 0.1-2.6 points of headroom; the worst element is
 now `#presence-text` at 4.82:1 (was 5.11). Re-run that comparison before
 pushing colour further — there is not much margin left.
 
+### Shooting stars — no var() in the keyframes, ever
+
+The layer is built as **arm > streak > head** (`i > b > u`). The arm carries
+the ANGLE as a static inline `transform: rotate()`, the streak animates a
+plain `translateX`, and every colour is written inline as a concrete
+`rgb()` / `rgba()` value.
+
+That shape exists for one reason: **custom properties inside `@keyframes` are
+a long-standing Gecko weak spot.** The first version animated
+`transform: rotate(var(--star-a)) translateX(...)` and tinted from
+`var(--star-rgb)`. When a `var()` fails to resolve inside a keyframe the whole
+declaration is dropped at computed-value time — so the star never travels,
+sits parked off-screen, and fades in and out where nobody can see it. It
+worked in Chrome and was invisible in Firefox for Android, reported three
+times as "the shooting stars still don't work on mobile".
+
+Do not reintroduce `var()` into `@keyframes shoot`, and do not move the
+colours back into custom properties.
+
 ### Shooting stars — why they are ABOVE the content
 
 `.shooting` is `z-index: 3`, over `.layout`. It spent three rounds at
@@ -521,6 +559,15 @@ the year.
 The clock only ticks while the popover is open — a permanent 1s timer for a
 tooltip nobody is looking at is the same idle wake-up the pointer glow parks
 itself to avoid. Hover, focus and tap (`.is-open`) all open it.
+
+**It paints before it binds anything**, and it does not depend on `Intl`.
+`Intl.DateTimeFormat` with a `timeZone` is tried first and only trusted if it
+actually returns digits; otherwise a manual US-Eastern calculation takes over
+(post-2007 rule: DST from the second Sunday in March to the first Sunday in
+November). An engine with a trimmed ICU build either throws or quietly
+ignores `timeZone`, and the chip then sat on its `--:--:--` placeholder
+forever — which is what it did on Firefox for Android. The placeholder must
+never survive past the first `paint()` call.
 
 **Do not put `visibility` in the popover's `transition` list with a duration.**
 It interpolates rather than flipping, so the popover measured as `hidden`
@@ -617,8 +664,10 @@ and must not be able to inject markup. URLs are auto-linked.
 panel: banner (with the animated nameplate webm over it) → avatar with APNG
 decoration and a presence dot → display name → `@handle · raid is backup` +
 guild tag → badges → action buttons → presence pill → custom status →
-"Currently" → bio → games → connections → location. Don't split it back into
-two cards. ("Member since" was removed at the owner's request.)
+"Currently" → bio → games → location. Don't split it back into two cards.
+("Member since" and the whole Connections list were removed at the owner's
+request — Connections restated the links section. `/api/profile` still
+returns the sanitised list; it simply isn't rendered.)
 
 The panel is deliberately **not** `position: sticky`. Merged, it is taller
 than most viewports, and a sticky box taller than the screen traps its own
@@ -782,6 +831,11 @@ the cause was Windows 11 Settings -> Accessibility -> Visual effects ->
 Animation effects being off, which is exactly what the media query honours.
 Respecting the OS by default is still correct; the toggle just makes the
 choice reachable.
+
+The toggle label reads **"Animations on" / "Animations off"**, not a constant
+"Animations". `aria-pressed` alone was ambiguous to sighted users, and
+"my animations don't work" is indistinguishable from "I turned them off on
+this device" without it — which cost real debugging time.
 
 `prefersReducedMotion()` in app.js reads the override first and is a
 **function, not a captured boolean**, so every motion-gated feature re-reads

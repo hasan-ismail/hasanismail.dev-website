@@ -873,11 +873,6 @@ loadContributions();
 // connections. Those come from our own /api/profile, which proxies and caches
 // a public profile endpoint server-side.
 
-const CONNECTION_LABEL = {
-  domain: "Domain", github: "GitHub", reddit: "Reddit", steam: "Steam",
-  xbox: "Xbox", youtube: "YouTube", facebook: "Facebook", twitter: "X",
-  spotify: "Spotify", twitch: "Twitch", instagram: "Instagram",
-};
 
 // Render bio text with URLs linked. Built from DOM nodes, never innerHTML —
 // the text is remote content and must not be able to inject markup.
@@ -975,25 +970,8 @@ async function loadDiscordProfile() {
   // again, but nothing calls it now; do not re-point it at #dc-bio without
   // checking, or it will wipe the authored copy on first load.
 
-  // Connections. Names and verified state only — the upstream account ids are
-  // dropped server-side and never reach the browser.
-  const conns = document.getElementById("dc-connections");
-  const connLabel = document.getElementById("dc-conn-label");
-  if (conns && p.connections && p.connections.length) {
-    conns.textContent = "";
-    for (const c of p.connections) {
-      const row = el("div", "pc-connection");
-      row.appendChild(el("span", "pc-conn-type", CONNECTION_LABEL[c.type] || c.type));
-      row.appendChild(el("span", "pc-conn-name", c.name));
-      if (c.verified) {
-        const tick = el("span", "pc-conn-verified", "✓");
-        tick.title = "Verified";
-        row.appendChild(tick);
-      }
-      conns.appendChild(row);
-    }
-    if (connLabel) connLabel.hidden = false;
-  }
+  // The connections list was removed — it restated the links section. The
+  // /api/profile payload still carries it (sanitised); we just don't render it.
 }
 
 loadDiscordProfile();
@@ -1025,9 +1003,10 @@ function applyMotion() {
   const btn = document.getElementById("motion-toggle");
   const label = document.getElementById("motion-label");
   if (btn) btn.setAttribute("aria-pressed", String(motionEnabled()));
-  // The label stays constant — aria-pressed carries the state. Changing both
-  // makes the control ambiguous: does the label describe now, or the action?
-  if (label) label.textContent = "Animations";
+  // The label spells the state out. aria-pressed alone was ambiguous to
+  // sighted users, and "my animations don't work" is indistinguishable from
+  // "I turned them off on this device" without it.
+  if (label) label.textContent = motionEnabled() ? "Animations on" : "Animations off";
 }
 
 function initMotionToggle() {
@@ -1058,14 +1037,21 @@ function initShootingStars() {
   if (prefersReducedMotion()) return;
   const narrow = window.matchMedia("(max-width: 720px)").matches;
 
+  // Colours are written as concrete inline values and the travel keyframes
+  // carry no var(). Custom properties inside @keyframes are a long-standing
+  // Gecko weak spot: if one fails to resolve there, the whole transform
+  // declaration is dropped at computed-value time, the star never travels and
+  // it sits parked off-screen fading in and out invisibly — which is exactly
+  // what "the shooting stars don't work on Firefox mobile" looks like.
+  // Nothing in this layer now depends on var() resolution.
   const HUES = [
-    ["#ffffff", "255 255 255"],
-    ["#7ae8fb", "122 232 251"],
-    ["#b3b8ff", "179 184 255"],
-    ["#ff8ada", "255 138 218"],
-    ["#ffd79a", "255 215 154"],
-    ["#7ef0c8", "126 240 200"],
-    ["#ffa9b8", "255 169 184"],
+    [255, 255, 255],
+    [122, 232, 251],
+    [179, 184, 255],
+    [255, 138, 218],
+    [255, 215, 154],
+    [126, 240, 200],
+    [255, 169, 184],
   ];
 
   const layer = document.createElement("div");
@@ -1073,26 +1059,31 @@ function initShootingStars() {
   layer.setAttribute("aria-hidden", "true");
 
   for (let i = 0; i < (narrow ? 9 : 10); i++) {
-    const star = document.createElement("i");
-    const [hue, rgb] = HUES[i % HUES.length];
-    star.style.setProperty("--star", hue);
-    star.style.setProperty("--star-rgb", rgb);
-    star.style.setProperty("--star-a", (22 + Math.random() * 22).toFixed(1) + "deg");
-    // Was the top 55% only, which on a phone is almost entirely covered by the
-    // profile card. Spreading the full height puts stars in the gaps between
-    // sections and the open area below them, where they can actually be seen.
-    star.style.top = (4 + Math.random() * 84).toFixed(1) + "%";
-    star.style.left = "-15vw";
-    // Length is free: the contrast budget caps per-pixel brightness, not how
-    // long the streak is, and a long streak reads as a shooting star where a
-    // short faint one reads as a smudge.
-    star.style.width = (narrow ? 170 + Math.random() * 130 : 240 + Math.random() * 200).toFixed(0) + "px";
-    // Shorter cycles plus a longer visible window (see @keyframes shoot): with
-    // 6 stars at a 45% duty cycle the odds of an empty sky are ~3%, against ~37%
-    // at the old 3 stars x 28%. "I still do not see shooting stars" was that.
-    star.style.animationDuration = (6 + Math.random() * 7).toFixed(1) + "s";
-    star.style.animationDelay = (-Math.random() * 13).toFixed(1) + "s";
-    layer.appendChild(star);
+    const [r, g, b] = HUES[i % HUES.length];
+    const rgb = r + ", " + g + ", " + b;
+
+    // The arm holds the angle as a STATIC transform, so the animation only
+    // has to translate along one axis and never needs a variable.
+    const arm = document.createElement("i");
+    arm.style.top = (4 + Math.random() * 84).toFixed(1) + "%";
+    arm.style.transform = "rotate(" + (22 + Math.random() * 22).toFixed(1) + "deg)";
+
+    const streak = document.createElement("b");
+    streak.style.width = (narrow ? 170 + Math.random() * 130 : 240 + Math.random() * 200).toFixed(0) + "px";
+    // rgba(...,0) rather than `transparent`: some engines fade through grey.
+    streak.style.background =
+      "linear-gradient(to right, rgba(" + rgb + ", 0), rgba(" + rgb + ", 0.5) 55%, rgb(" + rgb + "))";
+    streak.style.boxShadow = "0 0 16px 2px rgba(" + rgb + ", 0.7)";
+    streak.style.animationDuration = (6 + Math.random() * 7).toFixed(1) + "s";
+    streak.style.animationDelay = (-Math.random() * 13).toFixed(1) + "s";
+
+    const head = document.createElement("u");
+    head.style.background = "rgb(" + rgb + ")";
+    head.style.boxShadow = "0 0 12px 3px rgba(" + rgb + ", 0.8)";
+
+    streak.appendChild(head);
+    arm.appendChild(streak);
+    layer.appendChild(arm);
   }
   document.body.appendChild(layer);
 }
@@ -1113,24 +1104,52 @@ function initTimezone() {
   const out = document.getElementById("pc-tz-clock");
   if (!chip || !out) return;
 
-  let timer = null;
-  let fmt;
+  // US Eastern without depending on Intl's timezone database. Intl is tried
+  // first because it is authoritative, but an engine with a trimmed ICU build
+  // either throws or quietly ignores timeZone, and the chip then sat on its
+  // --:--:-- placeholder forever. This is the post-2007 US rule: DST from the
+  // second Sunday in March to the first Sunday in November.
+  function manual(d) {
+    const y = d.getUTCFullYear();
+    const nthSunday = (month, n, utcHour) => {
+      const dow = new Date(Date.UTC(y, month, 1)).getUTCDay();
+      const day = 1 + ((7 - dow) % 7) + (n - 1) * 7;
+      return Date.UTC(y, month, day, utcHour);
+    };
+    const start = nthSunday(2, 2, 7);  // 02:00 EST = 07:00 UTC
+    const end = nthSunday(10, 1, 6);   // 02:00 EDT = 06:00 UTC
+    const t = d.getTime();
+    const loc = new Date(t + (t >= start && t < end ? -4 : -5) * 3600000);
+    let h = loc.getUTCHours();
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    const p2 = (n) => (n < 10 ? "0" + n : String(n));
+    return h + ":" + p2(loc.getUTCMinutes()) + ":" + p2(loc.getUTCSeconds()) + " " + ampm;
+  }
+
+  let fmt = null;
   try {
-    fmt = new Intl.DateTimeFormat("en-US", {
+    const f = new Intl.DateTimeFormat("en-US", {
       timeZone: "America/New_York",
       hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true,
     });
+    // Only trust it if it actually produced digits.
+    if (/[0-9]/.test(f.format(new Date()))) fmt = f;
   } catch {
-    // No IANA tz database (very old engines). Hide rather than show a wrong time.
-    chip.hidden = true;
-    return;
+    // fall through to manual
   }
 
   const paint = () => {
-    const t = fmt.format(new Date());
+    const t = fmt ? fmt.format(new Date()) : manual(new Date());
     out.textContent = t;
     chip.setAttribute("aria-label", "Eastern Time, currently " + t);
   };
+
+  // Paint BEFORE binding anything. Whatever else fails, the placeholder never
+  // survives past this line.
+  paint();
+
+  let timer = null;
   const open = () => {
     paint();
     if (!timer) timer = setInterval(paint, 1000);
@@ -1145,7 +1164,6 @@ function initTimezone() {
   chip.addEventListener("pointerleave", close);
   chip.addEventListener("focus", open);
   chip.addEventListener("blur", close);
-  // Touch has no hover, so a tap pins the popover open.
   chip.addEventListener("click", () => {
     const on = chip.classList.toggle("is-open");
     if (on) open(); else close();
@@ -1153,8 +1171,12 @@ function initTimezone() {
   chip.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); chip.click(); }
   });
+  // Touch engines that never fire pointerenter still get a fresh time.
+  chip.addEventListener("touchstart", paint, { passive: true });
 
-  paint(); // so the aria-label is meaningful before any interaction
+  // Belt and braces for slow or odd engines.
+  setTimeout(paint, 1000);
+  window.addEventListener("load", paint);
 }
 
 // ---- social stats ----
@@ -1201,4 +1223,4 @@ async function loadSocial() {
 }
 
 safe("initTimezone", initTimezone);
-loadSocial();
+safe("loadSocial", loadSocial);

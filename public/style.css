@@ -388,15 +388,6 @@ html[data-motion="off"] .cursor-glow { display: none !important; }
 
 .pc-meta { margin: 0; font-size: 0.85rem; color: var(--ink-muted); }
 
-.pc-connection {
-  display: inline-block;
-  font-size: 0.85rem;
-  color: var(--ink);
-  border-bottom: 1px solid rgb(var(--teal-rgb) / 0.35);
-  transition: border-color 0.16s ease, color 0.16s ease;
-}
-.pc-connection:hover { color: var(--teal); border-color: var(--teal); }
-
 .pc-location {
   margin: 16px 0 0;
   font-family: 'JetBrains Mono', monospace;
@@ -1221,31 +1212,6 @@ a.pc-badge-icon:hover { transform: translateY(-2px) scale(1.12); background: rgb
 .pc-bio-link:hover { border-color: var(--dc-accent); }
 .pc-role { color: var(--ink); font-weight: 500; }
 
-/* Connections */
-.pc-connections { display: flex; flex-direction: column; gap: 5px; }
-.pc-connection {
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
-  padding: 6px 10px;
-  border-radius: 9px;
-  background: rgb(var(--ink-rgb) / 0.04);
-  border: 1px solid var(--glass-border);
-  font-size: 0.8rem;
-  color: var(--ink);
-  transition: border-color 0.16s ease, background 0.16s ease;
-}
-.pc-connection:hover { border-color: var(--border-accent); background: rgb(var(--ink-rgb) / 0.07); }
-.pc-conn-type {
-  font-size: 0.62rem;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-  min-width: 52px;
-}
-.pc-conn-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pc-conn-verified { color: var(--up); font-size: 0.78rem; }
-
 /* ==========================================================================
    COLOUR PASS
    The owner asked for substantially more colour. The palette gains two hues
@@ -1712,7 +1678,6 @@ body {
 .gh-loc { color: var(--green-lt); }
 .pc-games-list li, .svc-row:hover { background: rgb(var(--ink-rgb) / 0.07); }
 .pc-bio-link { color: var(--teal-lt); border-bottom-color: rgb(var(--teal-lt-rgb) / 0.45); }
-.pc-connection { background: rgb(var(--ink-rgb) / 0.06); }
 .dc-platform { background: rgb(var(--teal-lt-rgb) / 0.14); border-color: rgb(var(--teal-lt-rgb) / 0.3); }
 .dc-activity { background: rgb(var(--teal-lt-rgb) / 0.08); }
 
@@ -1776,20 +1741,36 @@ body {
   pointer-events: none;
   overflow: hidden;
 }
+/* Structure is arm > streak > head.
+
+   The arm carries the ANGLE as a static inline transform and the streak
+   animates a plain translateX, so @keyframes shoot needs no var() at all.
+   Custom properties inside keyframes are a long-standing Gecko weak spot:
+   when one fails to resolve the whole transform declaration is dropped at
+   computed-value time, the star never travels, and it fades in and out
+   parked off-screen. Colours are set inline per star for the same reason.
+   Do not reintroduce var() into these keyframes. */
 .shooting i {
   position: absolute;
+  left: 0;
+  width: 0;
+  height: 0;
+  display: block;
+}
+.shooting b {
+  position: absolute;
+  left: -15vw;
+  top: 0;
+  display: block;
   height: 2px;
   border-radius: 2px;
   opacity: 0;
-  background: linear-gradient(to right, transparent, rgb(var(--star-rgb, 255 255 255) / 0.5) 55%, var(--star, #ffffff));
-  box-shadow: 0 0 16px 2px rgb(var(--star-rgb, 255 255 255) / 0.7);
   animation: shoot linear infinite;
   will-change: transform, opacity;
 }
 /* The bright head. Without it the streak reads as a smudge against the
    backdrop artwork, which after the vibrancy pass is busy and light. */
-.shooting i::after {
-  content: "";
+.shooting u {
   position: absolute;
   right: -1px;
   top: 50%;
@@ -1797,19 +1778,17 @@ body {
   height: 4px;
   margin-top: -2px;
   border-radius: 50%;
-  background: var(--star, #ffffff);
-  box-shadow: 0 0 12px 3px rgb(var(--star-rgb, 255 255 255) / 0.8);
+  text-decoration: none;
 }
-/* Travel occupies 45% of the cycle rather than 32%, so a given star is on
-   screen far more of the time. Parked off-screen for the remainder. */
+/* Travel occupies 45% of the cycle; parked off-screen for the remainder.
+   The 0.32 peak is the measured contrast budget — see CLAUDE.md. */
 @keyframes shoot {
-  0%   { opacity: 0; transform: rotate(var(--star-a, 32deg)) translateX(-24vw); }
+  0%   { opacity: 0; transform: translateX(-24vw); }
   5%   { opacity: 0.32; }
   38%  { opacity: 0.32; }
-  45%  { opacity: 0; transform: rotate(var(--star-a, 32deg)) translateX(132vw); }
-  100% { opacity: 0; transform: rotate(var(--star-a, 32deg)) translateX(132vw); }
+  45%  { opacity: 0; transform: translateX(132vw); }
+  100% { opacity: 0; transform: translateX(132vw); }
 }
-
 /* Phones keep a smaller flock — see initShootingStars(). */
 
 /* ==========================================================================
@@ -2298,3 +2277,64 @@ body {
   background: #ffb3c0;
   box-shadow: 0 0 8px rgb(255 122 145 / 0.9);
 }
+
+/* ==========================================================================
+   SPLIT LINK ROW, second pass
+
+   Left-aligning each half put the two labels at the far left of a ~750px
+   row, so the pair read as one lopsided item with a hole in it rather than
+   as two. Centring each half puts them on the quarter lines, and the
+   divider is brand-tinted so it is actually visible against the glass.
+   ========================================================================== */
+
+.link--split { align-items: stretch; }
+.link-half {
+  justify-content: center;
+  gap: 11px;
+  padding: 14px 16px;
+}
+/* .link-text is flex:1 for normal rows; here that would eat the free space
+   and defeat the centring. */
+.link--split .link-text { flex: 0 1 auto; }
+.link-half + .link-half {
+  border-inline-start: 1px solid rgb(var(--brand-rgb) / 0.3);
+}
+.link--split .link-title { font-size: 0.92rem; }
+
+/* Below 480px there is no room for two labelled halves side by side. */
+@media (max-width: 480px) {
+  .link-half { flex-direction: column; gap: 6px; text-align: center; padding: 12px 8px; }
+  .link--split .link-icon { width: 26px; height: 26px; }
+  .link--split .link-title { font-size: 0.82rem; }
+  .link--split .link-desc { font-size: 0.68rem; }
+}
+
+/* ==========================================================================
+   SPLIT ROW — beating .link-item a
+
+   `.link-item a` is written for single-link rows and wins on specificity
+   (0,1,1) over `.link-half` (0,1,0). It was imposing three things that broke
+   the split row outright:
+
+     * display: block — so the halves were never flex containers at all and
+       the icon stacked above its label. That is the whole of "half and half
+       github looks weird"; it was never a spacing problem.
+     * a single ellipsised nowrap line.
+     * ::before, a full-bleed overlay that makes a whole pill clickable. With
+       two anchors in one row, the SECOND overlay covered the entire row and
+       swallowed clicks meant for the first half.
+
+   The half is itself the anchor and fills its side of the row, so it is
+   already its own hit target and needs no overlay.
+   ========================================================================== */
+
+.link-item a.link-half {
+  display: flex;
+  font-size: inherit;
+  font-weight: inherit;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+.link-item a.link-half::before,
+.link-item a.link-half::after { content: none; }
