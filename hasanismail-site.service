@@ -4,11 +4,36 @@ After=network.target
 
 [Service]
 Type=simple
+# Runs as a dedicated unprivileged system user, created by install.sh. The
+# process is internet-exposed via the Cloudflare Tunnel and needs no privilege
+# beyond reading its own directory and writing data/.
+User=hasanismail-site
+Group=hasanismail-site
 WorkingDirectory=/opt/hasanismail-site
 ExecStart=/usr/bin/node server.js
 Restart=on-failure
 RestartSec=5
 Environment=PORT=3300
+
+# --- hardening ---
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# ProtectSystem=strict makes the whole filesystem read-only, so the one
+# directory the app genuinely writes has to be listed back.
+ReadWritePaths=/opt/hasanismail-site/data
 
 [Install]
 WantedBy=multi-user.target

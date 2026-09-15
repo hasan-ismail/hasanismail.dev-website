@@ -65,8 +65,18 @@ else
   git clone "$REPO_URL" "$INSTALL_DIR"
 fi
 
+# Dedicated unprivileged account for the service. Idempotent.
+if ! id -u "$SERVICE" >/dev/null 2>&1; then
+  useradd --system --no-create-home --shell /usr/sbin/nologin "$SERVICE"
+fi
+
 cd "$INSTALL_DIR"
 npm install --omit=dev
+
+# The unit runs as $SERVICE with ProtectSystem=strict, so data/ must exist and
+# be writable by it before the first start.
+mkdir -p "$INSTALL_DIR/data"
+chown -R "$SERVICE":"$SERVICE" "$INSTALL_DIR/data"
 
 cp "$SERVICE.service" "/etc/systemd/system/$SERVICE.service"
 systemctl daemon-reload

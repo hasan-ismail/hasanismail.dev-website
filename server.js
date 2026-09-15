@@ -19,7 +19,15 @@ const RETAIN_DAYS = 30;
 const DAY_MS = 86_400_000;
 
 const app = express();
-app.use(express.static(path.join(__dirname, "public")));
+// Short max-age with revalidation. There is no build step and therefore no
+// content hashing, so a long immutable cache would strand returning visitors on
+// stale CSS/JS with no recovery path.
+app.use(express.static(path.join(__dirname, "public"), {
+  maxAge: "5m",
+  setHeaders(res, filePath) {
+    if (filePath.endsWith(".html")) res.setHeader("Cache-Control", "no-cache");
+  },
+}));
 
 // ---------- config ----------
 //
@@ -55,8 +63,21 @@ let saveTimer = null;
 function saveHistorySoon() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    fs.mkdirSync(path.dirname(HISTORY_FILE), { recursive: true });
-    fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
+    // This runs in a bare timer, so an uncaught throw here takes the whole
+    // process down — and because the cause (disk full, read-only mount) is
+    // persistent, systemd's Restart=on-failure would flap forever. The history
+    // file is a disposable cache; failing to write it must never cost the site.
+    try {
+      fs.mkdirSync(path.dirname(HISTORY_FILE), { recursive: true });
+      // Write-then-rename: a crash mid-write would otherwise leave truncated
+      // JSON, which loadHistory() silently reads back as {} — losing 30 days of
+      // aggregates without any error.
+      const tmp = HISTORY_FILE + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify(history, null, 2));
+      fs.renameSync(tmp, HISTORY_FILE);
+    } catch (err) {
+      console.error("history write failed (continuing):", err.message);
+    }
   }, 1000);
 }
 
@@ -275,13 +296,18 @@ async function ghJson(url) {
   return { status: res.status, text };
 }
 
+// Thrown when GitHub rate-limits us, so the whole run aborts instead of
+// grinding through a dozen more requests that will all fail the same way.
+class RateLimited extends Error {}
+
 async function repoStats(fullName, tries = 8) {
   for (let i = 0; i < tries; i++) {
     const { status, text } = await ghJson(`https://api.github.com/repos/${fullName}/stats/contributors`);
     if (status === 200 && text.trim().startsWith("[")) return JSON.parse(text);
     if (status === 202) { await sleep(2500); continue; } // still computing
     if (status === 204) return [];                       // empty repo
-    return null;                                         // 403 / 404 / rate limited
+    if (status === 403 || status === 429) throw new RateLimited(fullName);
+    return null;                                         // 404 / unexpected
   }
   return null;
 }
@@ -298,7 +324,18 @@ async function computeLinesAdded() {
   const cutoff = Math.floor(Date.now() / 1000) - 365 * 86400;
   let added = 0, removed = 0, counted = 0, skipped = 0;
   for (const full of repos) {
-    const stats = await repoStats(full);
+    let stats;
+    try {
+      stats = await repoStats(full);
+    } catch (err) {
+      if (err instanceof RateLimited) {
+        // Stop immediately. Continuing would burn the remaining quota on calls
+        // that cannot succeed, and the partial result is discarded anyway.
+        skipped += repos.length - counted;
+        return { added, removed, repos: counted, skipped, rateLimited: true };
+      }
+      throw err;
+    }
     if (!stats) { skipped++; continue; }
     counted++;
     const mine = stats.find(
@@ -308,7 +345,7 @@ async function computeLinesAdded() {
     for (const w of mine.weeks) if (w.w >= cutoff) { added += w.a; removed += w.d; }
   }
   // `skipped` is reported so the UI never implies full coverage it didn't get.
-  return { added, removed, repos: counted, skipped };
+  return { added, removed, repos: counted, skipped, rateLimited: false };
 }
 
 // A PARTIAL total is worse than none: GitHub answers 202 while it computes a
@@ -335,11 +372,23 @@ function refreshLinesAdded() {
       } else {
         locCache.at = Date.now(); // keep the good data, just back off
       }
-      if (data.skipped) {
+      if (data.rateLimited) {
+        // Rate-limited is NOT "stats not ready" — retrying in 3 minutes would
+        // just re-trip the limit. Back off for a full hour, which is the
+        // unauthenticated window.
+        locCache.at = Date.now() + LOC_RETRY_MS;
+        console.warn("lines-added hit the GitHub rate limit; backing off an hour");
+      } else if (data.skipped) {
         console.warn(`lines-added incomplete: ${data.skipped} repo(s) not ready, retrying later`);
       }
     })
-    .catch((err) => console.error("lines-added computation failed:", err.message))
+    .catch((err) => {
+      console.error("lines-added computation failed:", err.message);
+      // Stamp the attempt, or a failing run restarts a ~14-call GitHub crawl on
+      // every single request.
+      if (!locCache.data) locCache = { at: Date.now(), data: null };
+      else locCache.at = Date.now();
+    })
     .finally(() => { locRunning = false; });
 }
 
@@ -396,7 +445,9 @@ async function fetchDiscordProfile() {
         id: b.id,
         description: b.description || "",
         icon: b.icon || null,
-        link: b.link || null,
+        // https only. This value becomes an href in the browser, so a
+        // compromised upstream could otherwise hand us a javascript: URL.
+        link: typeof b.link === "string" && /^https:///i.test(b.link) ? b.link : null,
       })),
       // type/name/verified only — the raw ids are deliberately not forwarded.
       connections: (j.connected_accounts || []).map((c) => ({

@@ -9,6 +9,9 @@
 <meta name="description" content="Hasan Ismail — founder and lead developer of OpenMasjid Solutions. Self-hosted everything.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪼</text></svg>">
 <script>try{document.documentElement.dataset.motion=localStorage.getItem("hi-motion")==="off"?"off":"on";}catch(e){document.documentElement.dataset.motion="on";}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -214,7 +217,7 @@
 
         <div class="pc-presence">
           <span class="dot" id="presence-dot"></span>
-          <span id="presence-text">connecting&hellip;</span>
+          <span id="presence-text" role="status">connecting&hellip;</span>
         </div>
 
         <p class="pc-custom" id="dc-custom" hidden></p>
@@ -374,7 +377,7 @@
           <span class="gh-loc" id="gh-loc" hidden></span>
         </div>
         <div class="gh-graph" id="gh-graph">
-          <p class="status-loading" id="gh-loading">Loading&hellip;</p>
+          <p class="status-loading" id="gh-loading" role="status">Loading&hellip;</p>
         </div>
         <div class="gh-legend" id="gh-legend" hidden>
           <span>Less</span>

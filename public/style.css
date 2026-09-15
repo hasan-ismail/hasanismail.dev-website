@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+/* Fonts are loaded via <link> in index.html — an @import here is invisible to
+   the browser preload scanner and costs an extra round trip. */
 
 /* ==========================================================================
    TOKENS — "deep bioluminescence"
@@ -65,6 +66,12 @@
 }
 
 * { box-sizing: border-box; }
+
+/* The hidden attribute must win. Several components set display: flex/grid on
+   elements that JS also toggles with .hidden (#status-summary, #gh-legend,
+   #dc-activity-wrap), and an author display rule silently beats the UA default
+   — so those elements stayed visible while empty. */
+[hidden] { display: none !important; }
 
 html { overflow-x: clip; }
 
@@ -172,9 +179,12 @@ html[data-motion="off"] .cursor-glow { display: none !important; }
 }
 
 .veil {
+  /* The outer stop has a FLOOR, not transparent. With transparent the corners
+     had ~0 veil alpha, and the teal bloom at top-left dropped --ink-muted to
+     3.75:1 on phone viewports. 0.22 restores it above 4.5:1 with headroom. */
   inset: 0;
   background:
-    radial-gradient(ellipse 92% 72% at 50% 40%, var(--veil), rgba(5, 12, 20, 0.18) 80%, transparent);
+    radial-gradient(ellipse 92% 72% at 50% 40%, var(--veil), rgba(5, 12, 20, 0.34) 80%, rgba(5, 12, 20, 0.30) 100%);
 }
 
 .cursor-glow {
@@ -1863,3 +1873,74 @@ body {
 .profile-card { border-color: rgb(var(--violet-rgb) / 0.26); }
 .gh-card      { border-color: rgb(var(--green-rgb) / 0.24); }
 .lab-summary  { border-color: rgb(var(--teal-rgb) / 0.26); }
+
+/* ==========================================================================
+   PERFORMANCE CAPS  (must stay LAST in this file)
+   This stylesheet is built by appending, so an earlier @media block loses to a
+   later plain rule at equal specificity. Two earlier mobile rules were dead for
+   exactly that reason. Anything that needs to win goes here, at the end.
+   ========================================================================== */
+
+@media (max-width: 720px) {
+  /* Backdrop-filter is a render-pass read-back; with an animating backdrop
+     beneath it, every glass panel re-blurs on every frame, forever. On a phone
+     that is ~10 tile flushes per frame for pure decoration. Keep the glass look
+     only on the hero card and make the rest opaque. */
+  .link-item,
+  .gh-card,
+  .lab-summary {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: #0d1b2a;
+  }
+  .link-item:hover { background: #12253a; }
+
+  /* The ambient layer is the thing forcing those repaints. Freeze it on phones:
+     the blooms stay as colour, they just stop moving. */
+  .bloom { animation: none !important; }
+
+  /* Inner jellyfish detail animations off (the earlier rule that tried this was
+     dead — overridden by later same-specificity rules). */
+  .jf-strands--a,
+  .jf-strands--b,
+  .jf-arms,
+  .jf-bell,
+  .jelly__svg,
+  .jelly__body::before { animation: none !important; }
+
+  /* background-attachment: fixed forces main-thread scrolling on mobile.
+     Dropping it alone would restretch the percentage-sized gradients over the
+     whole document, so pin the painting area to the viewport instead. */
+  body {
+    background-attachment: scroll !important;
+    background-size: 100vw 100vh !important;
+    background-repeat: no-repeat !important;
+  }
+
+  /* Repainting clipped gradient text 60x/s for a heading nobody is watching. */
+  .pc-display { animation: none !important; }
+}
+
+/* A hovered row was losing its separator: `.svc-row + .svc-row` (0,2,0) beat
+   `.svc-row:hover` (0,2,0) on source order. Set the longhand so hover wins. */
+.svc-row + .svc-row { border-top-color: rgb(var(--ink-rgb) / 0.05); }
+.svc-row:hover { border-top-color: rgb(var(--teal-rgb) / 0.3); }
+
+/* The summary pill wrapped to two lines inside a 999px radius on every phone. */
+.lab-summary { flex-wrap: wrap; row-gap: 6px; }
+.lab-title { flex: 0 0 auto; }
+.status-summary { white-space: nowrap; }
+.lab-summary::after { margin-inline-start: auto; }
+
+/* Screen-reader-only text for status, which is otherwise conveyed by colour
+   alone — unusable with a screen reader or red/green colour blindness. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

@@ -381,7 +381,8 @@ async function fetchPresence() {
     if (json.success) {
       // A late REST response must not clobber fresher socket data.
       if (!gotSocketData) renderProfile(json.data);
-    } else {
+    } else if (!gotSocketData) {
+      // A failed REST poll must not blank the line while the socket is healthy.
       presenceUnavailable();
     }
   } catch {
@@ -475,6 +476,12 @@ function initCursorGlow() {
     x += (targetX - x) * 0.2;
     y += (targetY - y) * 0.2;
     glow.style.transform = "translate3d(" + x + "px, " + y + "px, 0)";
+    // Park the loop once the glow has caught up, instead of running forever at
+    // 60fps behind an idle pointer. A pointermove restarts it.
+    if (Math.abs(targetX - x) < 0.5 && Math.abs(targetY - y) < 0.5) {
+      running = false;
+      return;
+    }
     requestAnimationFrame(frame);
   }
 }
@@ -545,6 +552,11 @@ function buildTile(svc, index) {
   const dot = el("span", "status-dot");
   row.appendChild(dot);
 
+  // Status is otherwise conveyed by dot colour alone, which is invisible to a
+  // screen reader and to red/green colour blindness.
+  const sr = el("span", "sr-only");
+  row.appendChild(sr);
+
   const name = el("span", "svc-name", svc.name);
   row.appendChild(name);
 
@@ -567,7 +579,7 @@ function buildTile(svc, index) {
     row.appendChild(link);
   }
 
-  return { card: row, readouts };
+  return { card: row, readouts, sr };
 }
 
 function gridForNode(nodeId, nodes) {
@@ -599,6 +611,7 @@ function renderStatus(services, nodes) {
       gridForNode(svc.node, nodes).appendChild(tile.card);
     }
     tile.card.className = "svc-row status-" + svc.status;
+    if (tile.sr) tile.sr.textContent = svc.name + ": " + svc.status;
     setReadout(tile.readouts.uptime24h, svc.uptime24h, formatUptime);
     setReadout(tile.readouts.uptime30d, svc.uptime30d, formatUptime);
     setReadout(tile.readouts.latencyMs, svc.latencyMs, formatLatency);
@@ -882,8 +895,11 @@ async function loadDiscordProfile() {
     richProfile.badges = true;
     for (const b of p.badges) {
       if (!b.icon) continue;
-      const node = b.link ? el("a", "pc-badge-icon") : el("span", "pc-badge-icon");
-      if (b.link) { node.href = b.link; node.rel = "noopener"; }
+      // Mirror of the server-side check: only https becomes a link, so a
+      // compromised upstream cannot inject a javascript: URL.
+      const safeLink = typeof b.link === "string" && /^https:///i.test(b.link) ? b.link : null;
+      const node = safeLink ? el("a", "pc-badge-icon") : el("span", "pc-badge-icon");
+      if (safeLink) { node.href = safeLink; node.rel = "noopener"; }
       node.title = b.description || b.id;
       const img = el("img");
       img.src = CDN + "/badge-icons/" + b.icon + ".png";
@@ -960,7 +976,9 @@ function applyMotion() {
   const btn = document.getElementById("motion-toggle");
   const label = document.getElementById("motion-label");
   if (btn) btn.setAttribute("aria-pressed", String(motionEnabled()));
-  if (label) label.textContent = motionEnabled() ? "Animations on" : "Animations off";
+  // The label stays constant — aria-pressed carries the state. Changing both
+  // makes the control ambiguous: does the label describe now, or the action?
+  if (label) label.textContent = "Animations";
 }
 
 function initMotionToggle() {
