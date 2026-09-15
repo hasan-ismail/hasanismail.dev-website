@@ -18,8 +18,9 @@
 
   /* Ink — 17.4:1 and 10.0:1 on --bg */
   --ink: #e9f6f5;
-  --ink-muted: #a2c0ca;
+  --ink-muted: #b0cbd4;
   --ink-rgb: 233 246 245;
+  --muted-rgb: 176 203 212;
 
   /* Glass. Inverted for dark: a translucent navy that DARKENS its backdrop.
      A white tint would let a bloom blast through and wreck text contrast. */
@@ -46,12 +47,13 @@
   --down: #ff5c74;
   --unknown: #8aa2b2;
   --idle: #e6b054;
+  --up-rgb: 34 208 127;
   --ring-up: rgba(34, 208, 127, 0.24);
   --ring-down: rgba(255, 92, 116, 0.24);
   --ring-idle: rgba(230, 176, 84, 0.24);
 
   /* Effects */
-  --veil: rgba(5, 12, 20, 0.45);
+  --veil: rgba(5, 12, 20, 0.52);
   --sheen: rgba(34, 211, 196, 0.16);  /* 0.16 WITH screen blend; 0.20 fails AA */
   --border-accent: rgba(34, 211, 196, 0.55);
   --cursor-glow: rgba(34, 211, 196, 0.17);
@@ -156,7 +158,7 @@ h1, h2, h3, h4 { font-family: 'Outfit', system-ui, sans-serif; font-weight: 600;
 .veil {
   inset: 0;
   background:
-    radial-gradient(ellipse 90% 70% at 50% 40%, var(--veil), rgba(5, 12, 20, 0.12) 80%, transparent);
+    radial-gradient(ellipse 92% 72% at 50% 40%, var(--veil), rgba(5, 12, 20, 0.18) 80%, transparent);
 }
 
 .cursor-glow {
@@ -1039,10 +1041,6 @@ h1, h2, h3, h4 { font-family: 'Outfit', system-ui, sans-serif; font-weight: 600;
 
 /* Teal ramp rather than GitHub green — the palette only has three accents. */
 .gh-l0 { background: rgb(var(--ink-rgb) / 0.06); }
-.gh-l1 { background: rgb(var(--teal-rgb) / 0.28); }
-.gh-l2 { background: rgb(var(--teal-rgb) / 0.5); }
-.gh-l3 { background: rgb(var(--teal-rgb) / 0.74); }
-.gh-l4 { background: var(--teal); box-shadow: 0 0 6px rgb(var(--teal-rgb) / 0.55); }
 
 @keyframes cell-in { from { opacity: 0; transform: scale(0.4); } }
 
@@ -1343,3 +1341,133 @@ a.pc-badge-icon:hover { transform: translateY(-2px) scale(1.12); background: rgb
 }
 .pc-conn-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pc-conn-verified { color: var(--up); font-size: 0.78rem; }
+
+/* ==========================================================================
+   COLOUR PASS
+   The owner asked for substantially more colour. The palette gains two hues
+   (blue, rose) and the ambient layer becomes an aurora mesh rather than a
+   single cool wash.
+
+   Contrast is still the binding constraint: every value here sits BEHIND the
+   `.veil` scrim and behind glass, and the ink pair was re-measured against the
+   brightest resulting backdrop after this change. If you add more colour,
+   re-measure — do not eyeball it.
+   ========================================================================== */
+
+:root {
+  --blue: #38bdf8;
+  --rose: #fb7185;
+  --blue-rgb: 56 189 248;
+  --rose-rgb: 251 113 133;
+  --idle-rgb: 230 176 84;
+}
+
+/* ---- aurora mesh ground ---- */
+
+body {
+  background:
+    radial-gradient(ellipse 70% 50% at 12% 8%,   rgb(var(--teal-rgb)   / 0.22), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 88% 18%,  rgb(var(--violet-rgb) / 0.24), transparent 62%),
+    radial-gradient(ellipse 75% 55% at 78% 82%,  rgb(var(--pink-rgb)   / 0.18), transparent 60%),
+    radial-gradient(ellipse 65% 50% at 18% 92%,  rgb(var(--blue-rgb)   / 0.16), transparent 62%),
+    radial-gradient(ellipse 120% 90% at 50% 0%, var(--bg-lift), var(--bg) 45%, var(--bg-deep));
+  background-attachment: fixed;
+}
+
+/* Two more blooms, and every bloom gets a little more presence. */
+.bloom-1 { opacity: 0.34; }
+.bloom-2 { opacity: 0.30; }
+.bloom-3 { opacity: 0.24; }
+.bloom-5 {
+  width: 400px; height: 400px;
+  top: 8%; left: 38%;
+  background: var(--blue);
+  opacity: 0.17;
+  animation: drift2 25s ease-in-out infinite reverse;
+}
+.bloom-6 {
+  width: 320px; height: 320px;
+  bottom: 24%; left: -80px;
+  background: var(--rose);
+  opacity: 0.15;
+  animation: drift1 29s ease-in-out infinite;
+}
+
+/* ---- jellyfish: five distinct hues instead of three ---- */
+
+.jelly--1 { --jf: var(--teal); }
+.jelly--2 { --jf: var(--violet); }
+.jelly--3 { --jf: var(--pink); }
+.jelly--4 { --jf: var(--blue); }
+.jelly--5 { --jf: var(--rose); }
+
+/* ---- contribution ramp: a heat map, not a single hue ---- */
+
+/* GitHub's own dark-mode contribution greens — the owner asked for the
+   familiar green dots rather than a palette-matched ramp. */
+.gh-l1 { background: #0e4429; }
+.gh-l2 { background: #006d32; }
+.gh-l3 { background: #26a641; }
+.gh-l4 { background: #39d353; box-shadow: 0 0 8px rgba(57, 211, 83, 0.6); }
+
+/* ---- gradient section titles ---- */
+
+.section-title {
+  background: linear-gradient(95deg, var(--ink), var(--accent, var(--teal)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* No gradient without a paint — pin a solid colour when animations/effects off. */
+@media (prefers-reduced-motion: reduce) {
+  .section-title { background: none; color: var(--ink-muted); -webkit-text-fill-color: var(--ink-muted); }
+}
+.section-title::before { background: var(--accent, var(--teal)); box-shadow: 0 0 10px var(--accent, var(--teal)); }
+.section-links .section-title { --accent: var(--violet); }
+.section-gh    .section-title { --accent: var(--blue); }
+
+/* ---- panels get a faint coloured rim ---- */
+
+.glass { border-color: rgb(var(--teal-rgb) / 0.16); }
+.profile-card { border-color: rgb(var(--violet-rgb) / 0.2); }
+.gh-card      { border-color: rgb(var(--blue-rgb) / 0.2); }
+.lab-summary  { border-color: rgb(var(--teal-rgb) / 0.2); }
+
+/* ---- link pills: brand gradient wash on hover ---- */
+
+.link-item:hover {
+  background:
+    linear-gradient(100deg, rgb(var(--brand-rgb) / 0.16), rgb(var(--brand-rgb) / 0.04) 60%),
+    var(--glass-strong);
+}
+
+/* ---- buttons pick up the profile accent ---- */
+
+.pc-btn--primary {
+  background: linear-gradient(100deg, rgb(var(--teal-rgb) / 0.26), rgb(var(--violet-rgb) / 0.22));
+  border-color: rgb(var(--teal-rgb) / 0.45);
+}
+.pc-btn--primary:hover { border-color: var(--teal); }
+
+/* ---- status tiles tint by state ---- */
+
+.status-card.status-up   { border-color: rgb(var(--up-rgb, 34 208 127) / 0.22); }
+.status-card.status-down { border-color: rgb(255 92 116 / 0.35); }
+
+/* ==========================================================================
+   GRADIENT-TEXT SAFETY
+   .section-title and .pc-display paint their glyphs with background-clip:text
+   and color:transparent. Without that support the text would be invisible, so
+   both fall back to a solid colour. Never ship clipped gradient text without
+   this guard.
+   ========================================================================== */
+
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .section-title,
+  .pc-display {
+    background: none;
+    color: var(--ink);
+    -webkit-text-fill-color: var(--ink);
+  }
+  .section-title { color: var(--ink-muted); -webkit-text-fill-color: var(--ink-muted); }
+}

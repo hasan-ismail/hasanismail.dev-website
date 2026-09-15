@@ -194,7 +194,7 @@ also text-safe at 10.3:1.
 | `--bg-deep` | `#03070e` | vignette edge of the body radial |
 | `--bg-lift` | `#0b1a2b` | opaque raised surface (image placeholders) |
 | `--ink` | `#e9f6f5` | body text, cyan-cast near-white |
-| `--ink-muted` | `#a2c0ca` | secondary text |
+| `--ink-muted` | `#b0cbd4` | secondary text (lifted from #a2c0ca — see below) |
 | `--ink-rgb` | `233 246 245` | channel triplet for `rgb(… / α)` |
 | `--glass` | `rgba(16,33,50,0.58)` | panel fill — a navy that **darkens** its backdrop |
 | `--glass-strong` | `rgba(26,50,72,0.74)` | elevated/hover fill |
@@ -211,7 +211,8 @@ also text-safe at 10.3:1.
 | `--unknown` | `#8aa2b2` | unknown / offline |
 | `--idle` | `#e6b054` | idle / away |
 | `--ring-up` / `--ring-down` / `--ring-idle` | `… 0.24` | dot glow rings |
-| `--veil` | `rgba(5,12,20,0.45)` | the contrast scrim (see below) |
+| `--veil` | `rgba(5,12,20,0.52)` | the contrast scrim (see below) |
+| `--blue` / `--rose` | `#38bdf8` / `#fb7185` | two further ambient hues |
 | `--sheen` | `rgba(34,211,196,0.16)` | link sweep gradient stop |
 | `--border-accent` | `rgba(34,211,196,0.55)` | accent edge on hover |
 | `--cursor-glow` | `rgba(34,211,196,0.17)` | pointer light |
@@ -243,6 +244,20 @@ a licence to add colour anywhere:
 
 Glow ring alphas are `0.24`, not the `0.16` the light theme used: a 16% halo is
 nearly invisible on near-black.
+
+**The colour pass raised the ambient layer** to an aurora mesh plus six blooms.
+That pushed `--ink-muted` on bare veiled ground to **4.28:1** in the
+all-six-overlap worst case — below AA. The fix was `--veil` 0.45 -> 0.52 and
+`--ink-muted` `#a2c0ca` -> `#b0cbd4`, which restores it to **5.55:1** (ink
+8.54:1). Re-measure with the compositing model if you touch bloom opacity, the
+aurora stops, or the veil: eyeballing this does not work, the failure only
+appears where several blooms overlap.
+
+**The GitHub calendar uses GitHub's own dark-mode greens** (`#0e4429`,
+`#006d32`, `#26a641`, `#39d353`), not the site palette — the owner asked for
+the familiar green dots. Level 1 sits at ~1.56:1 against the empty cell, which
+looks wrong until you check GitHub: their own empty-vs-l1 is 1.55:1. It is
+supposed to be that subtle; don't "fix" it.
 
 ### Backdrop stack — order is load-bearing
 
