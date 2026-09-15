@@ -7,11 +7,11 @@
   "nodes": [
     {
       "id": "node1",
-      "label": "Node 1 — lxcpool"
+      "label": "Node 1 — proxmox"
     },
     {
       "id": "node2",
-      "label": "Node 2"
+      "label": "Node 2 — proxmox 2"
     },
     {
       "id": "node3",

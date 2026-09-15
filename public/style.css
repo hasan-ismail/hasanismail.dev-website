@@ -1412,30 +1412,6 @@ body {
 .game:nth-child(3n+2):hover .game-art { border-color: var(--violet); }
 .game:nth-child(3n):hover   .game-art { border-color: var(--pink); }
 
-/* A landscape source in a portrait tile: letterbox the real art over a blurred,
-   zoomed copy of itself rather than cropping away 70% of the image.
-   Pragmata is unreleased and Steam has no portrait capsule for it. */
-.game-art--wide {
-  background-image: var(--art);
-  background-size: cover;
-  background-position: center;
-}
-.game-art--wide::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  backdrop-filter: blur(14px) saturate(130%);
-  -webkit-backdrop-filter: blur(14px) saturate(130%);
-  background: rgba(6, 15, 26, 0.35);
-}
-.game-art--wide img {
-  position: relative;
-  height: auto;
-  object-fit: contain;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
 /* Motion toggle control */
 .motion-toggle {
   display: inline-flex;
@@ -1797,8 +1773,7 @@ body {
   100% { opacity: 0; transform: rotate(var(--star-a, 32deg)) translateX(132vw); }
 }
 
-/* Decoration only — no reason to spend a phone's GPU on it. */
-@media (max-width: 720px) { .shooting { display: none; } }
+/* Phones keep a smaller flock — see initShootingStars(). */
 
 /* ==========================================================================
    WIDER PALETTE
@@ -2010,4 +1985,157 @@ body {
   .pc-avatar-row { flex-direction: column; align-items: flex-start; gap: 8px; }
   .pc-bubble { align-self: flex-start; margin-top: 0; }
   .pc-bubble::before, .pc-bubble::after { display: none; }
+}
+
+/* ==========================================================================
+   VIBRANCY PASS
+   The owner asked for "lots of color and vibrancy". The constraint is that
+   --ink (7.64:1) and --ink-muted (4.97:1) were measured against the darkened
+   backdrop, and every previous colour increase in this project broke AA and
+   had to be walked back. So the chroma is added where it cannot move text
+   contrast much: saturation rather than brightness, and a hue wash that
+   preserves the artwork's luminance instead of a glow that raises it.
+   ========================================================================== */
+
+/* Saturation, not brightness. brightness() is the value the contrast floor
+   depends on and is deliberately untouched at 0.36. */
+.backdrop {
+  filter: brightness(0.36) saturate(1.85) blur(2px);
+}
+
+/* The hue wash.
+   mix-blend-mode: color takes the hue and chroma of this layer and keeps the
+   LUMINANCE of what is underneath, so it recolours the artwork into distinct
+   regions without lightening it — which is the only reason it can be this
+   strong without costing AA. A plus-lighter/screen glow of the same intensity
+   would have added light and eaten the whole contrast margin.
+
+   It never animates, so the compositing cost is paid once. */
+.tint {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  mix-blend-mode: color;
+  opacity: 0.72;
+  background:
+    radial-gradient(ellipse 70% 55% at 8% 4%,   var(--cyan),    transparent 62%),
+    radial-gradient(ellipse 66% 52% at 94% 10%, var(--indigo),  transparent 62%),
+    radial-gradient(ellipse 72% 58% at 98% 62%, var(--magenta), transparent 62%),
+    radial-gradient(ellipse 64% 52% at 4% 66%,  var(--green),   transparent 62%),
+    radial-gradient(ellipse 60% 48% at 52% 98%, var(--amber),   transparent 62%),
+    radial-gradient(ellipse 58% 46% at 46% 34%, var(--violet),  transparent 66%);
+}
+
+/* A dark translucent fill desaturates whatever shows through it; with the
+   backdrop now this chromatic, 135% was visibly greying the panels. */
+:root { --glass-saturate: 175%; }
+
+/* Each link pill picks up its own brand hue instead of all six being the same
+   navy. 0.15 is the ceiling — the descriptions are --ink-muted, and a lighter
+   brand wash under them is exactly what pushed muted text below 4.5:1 before. */
+.link-item {
+  background:
+    linear-gradient(100deg, rgb(var(--brand-rgb) / 0.15), rgb(var(--brand-rgb) / 0.04) 58%, transparent 82%),
+    var(--glass);
+  border-color: rgb(var(--brand-rgb) / 0.30);
+}
+.link-item:hover {
+  background:
+    linear-gradient(100deg, rgb(var(--brand-rgb) / 0.24), rgb(var(--brand-rgb) / 0.07) 58%, transparent 82%),
+    var(--glass-strong);
+  border-color: rgb(var(--brand-rgb) / 0.55);
+  box-shadow: 0 8px 26px -14px rgb(var(--brand-rgb) / 0.55);
+}
+.link-icon { background: rgb(var(--brand-rgb) / 0.22); border-color: rgb(var(--brand-rgb) / 0.5); }
+.link-item:hover .link-icon { background: rgb(var(--brand-rgb) / 0.34); }
+
+/* Chrome edges, dots and rings — non-text surfaces, so they are free. */
+:root {
+  --ring-up: rgb(var(--green-rgb) / 0.38);
+  --ring-down: rgba(255, 122, 145, 0.36);
+  --ring-idle: rgba(255, 215, 154, 0.36);
+  --glass-border: rgba(166, 242, 251, 0.28);
+  --glass-border-strong: rgba(166, 242, 251, 0.42);
+  --sheen: rgba(122, 232, 251, 0.22);
+  --cursor-glow: rgba(122, 232, 251, 0.22);
+}
+.section-title::before { box-shadow: 0 0 12px var(--accent, var(--teal)); }
+.status-group:nth-of-type(1) { --node-accent: var(--cyan); }
+.status-group:nth-of-type(2) { --node-accent: var(--magenta); }
+.status-group:nth-of-type(3) { --node-accent: var(--amber); }
+
+
+/* ---- lines added ----
+   Its own chip, not a trailing clause. On a phone .gh-head wraps and the
+   figure lands on a second line, where run-on grey text reads as a fragment
+   of the sentence above it. */
+.gh-loc {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: var(--green-lt);
+  background: rgb(var(--green-lt-rgb) / 0.14);
+  border: 1px solid rgb(var(--green-lt-rgb) / 0.42);
+  cursor: help;
+}
+
+/* ---- timezone chip ---- */
+.pc-location { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.pc-tz {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: var(--amber);
+  background: rgb(var(--amber-rgb) / 0.14);
+  border: 1px solid rgb(var(--amber-rgb) / 0.45);
+  cursor: help;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.pc-tz:hover, .pc-tz:focus-visible, .pc-tz.is-open {
+  background: rgb(var(--amber-rgb) / 0.26);
+  border-color: rgb(var(--amber-rgb) / 0.75);
+}
+
+/* The popover is the reason the chip exists: hover (or tap, or focus) it and
+   the owner's actual local time is there. */
+.pc-tz-pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 6px 11px;
+  border-radius: 10px;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  color: var(--ink);
+  background: rgba(8, 18, 40, 0.94);
+  border: 1px solid rgb(var(--amber-rgb) / 0.45);
+  box-shadow: 0 10px 28px -12px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.16s ease, transform 0.16s var(--ease-out-expo), visibility 0s linear 0.16s;
+}
+.pc-tz:hover .pc-tz-pop,
+.pc-tz:focus-visible .pc-tz-pop,
+.pc-tz.is-open .pc-tz-pop {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+  transition: opacity 0.16s ease, transform 0.16s var(--ease-out-expo), visibility 0s linear 0s;
+}
+/* The popover sits above the chip, so it must not be clipped by the card. */
+.pc-body { overflow: visible; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-tz-pop, .pc-tz:hover .pc-tz-pop, .pc-tz:focus-visible .pc-tz-pop, .pc-tz.is-open .pc-tz-pop {
+    transition: none;
+    transform: translateX(-50%);
+  }
 }

@@ -527,4 +527,12 @@ app.get("/api/status", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`hasanismail-site listening on :${PORT}`);
+
+  // Start the lines-added crawl at boot rather than on the first request.
+  // It is a ~14-call crawl and cold repos answer 202, so a lazy start meant
+  // the first visitors after a restart saw no figure at all and had to come
+  // back minutes later. The tick just drives the retry/TTL logic inside
+  // refreshLinesAdded(), which decides for itself whether to do any work.
+  refreshLinesAdded();
+  setInterval(refreshLinesAdded, 10 * 60 * 1000).unref();
 });

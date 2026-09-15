@@ -18,6 +18,21 @@ it that way — don't add a bundler, a CSS framework, or a client library.
 - `data/history.json` — runtime state, gitignored. Safe to delete; it
   just resets uptime history.
 
+### The lines-added figure is slow on a cold process
+
+It is a ~14-repo crawl and GitHub answers **202** while it computes a cold
+repo's stats, so a freshly restarted process genuinely has nothing to show
+for a few minutes. Two things stop that reading as "the number is missing":
+
+- `refreshLinesAdded()` is called at boot and on a 10-minute tick, so the crawl
+  starts before the first visitor rather than on their request. The function
+  owns its own TTL and back-off, so the tick is free when there is no work.
+- The client calls `renderLinesAdded()`; if the figure is not publishable yet
+  it retries `/api/github` every 20s, six times, then gives up. Without this
+  the visitor had to reload to ever see it — which is exactly what happened.
+
+Both matter more than they look: the deployed container is the cold process.
+
 ---
 
 ## Hard invariant — do not break this
@@ -42,7 +57,7 @@ The response envelope is exactly:
 - `uptime24h` / `uptime30d` are percentages to one decimal, or `null`
   with no data yet.
 - `id` is a config slug, not host data — it is safe to expose.
-- `node` / `nodes` are display labels ("Node 1 — lxcpool"), not addresses.
+- `node` / `nodes` are display labels ("Node 1 — proxmox"), not addresses.
 - `publicUrl` is an intentionally public link, or `null`.
 
 The handler builds this object field by field on purpose. Don't "simplify"
@@ -97,7 +112,7 @@ contains, no code changes needed.
 ```json
 {
   "nodes": [
-    { "id": "node1", "label": "Node 1 — lxcpool" }
+    { "id": "node1", "label": "Node 1 — proxmox" }
   ],
   "services": [
     { "id": "unique-slug", "name": "Display name", "node": "node1",
@@ -332,6 +347,58 @@ The bell group spanned y 10..86 in viewBox units, putting that origin at
 y=66.2 and throwing the dome's top to y=-1.2 — outside `viewBox="0 0 120 260"`,
 and an SVG clips to its viewBox by default. The fix was `overflow: visible`.
 
+### Vibrancy pass — the `.tint` layer
+
+The owner asked for "lots of color and vibrancy". The constraint is that the
+ink pair was measured against the *darkened* backdrop, and every previous
+colour increase in this project broke AA and had to be walked back. So the
+chroma is added only where it cannot move text contrast much:
+
+- `saturate()` on `.backdrop` went 1.12 -> 1.85. `brightness()` is the value
+  the contrast floor depends on and stays at 0.36.
+- `.tint` is a full-viewport layer of six radial hue washes with
+  `mix-blend-mode: color`. That blend takes the hue and chroma of the layer
+  and keeps the **luminance** of what is underneath, so it recolours the
+  artwork into distinct regions without lightening it. A `screen` or
+  `plus-lighter` glow of the same intensity would have added light and eaten
+  the entire contrast margin. It never animates, so it composites once.
+- `--glass-saturate` went 135% -> 175%, and the link pills now carry their own
+  `--brand` wash (capped at 0.15 — the descriptions are `--ink-muted`, and a
+  lighter wash under them is exactly what failed AA before).
+
+Paint order is **backdrop -> tint -> cursor glow -> veil -> content**.
+
+**How this was verified**, because the old analytic contrast model no longer
+applies (the ground is a photograph plus a blend layer, not a stack of
+gradients): render the page twice at the same size, once with every glyph
+forced to solid magenta and once with every glyph transparent. The first is a
+glyph mask, the second is the true background. For each text element, sample
+the background only at glyph pixels and compare against the element's real
+computed colour. Measuring whole element rects instead gives false failures —
+it counts decorative bullets and gradient buttons as "background behind text".
+
+Measured before/after with the identical rig: **0 AA failures in both**, 0 new
+regressions. The pass cost 0.1-2.6 points of headroom; the worst element is
+now `#presence-text` at 4.82:1 (was 5.11). Re-run that comparison before
+pushing colour further — there is not much margin left.
+
+### Timezone chip
+
+`.pc-tz` beside the location. The label says "EST" because that is how the
+owner refers to it, but the time is formatted in `America/New_York`, so it
+stays correct across the DST boundary instead of drifting an hour for half
+the year.
+
+The clock only ticks while the popover is open — a permanent 1s timer for a
+tooltip nobody is looking at is the same idle wake-up the pointer glow parks
+itself to avoid. Hover, focus and tap (`.is-open`) all open it.
+
+**Do not put `visibility` in the popover's `transition` list with a duration.**
+It interpolates rather than flipping, so the popover measured as `hidden`
+even with `.is-open` applied and the rule winning the cascade. It uses
+`visibility 0s linear 0.16s` closed and `visibility 0s linear 0s` open, which
+steps it on immediately and off after the fade.
+
 ### Jellyfish (removed — kept for history)
 
 **They swim, they do not float.** Real jellyfish move by pulse-and-glide: the
@@ -446,10 +513,14 @@ All eight have real art. Two needed sources other than a Steam portrait capsule:
   (`displaycatalog.mp.microsoft.com/v7.0/products?bigIds=9NBLGGH2JHXJ`), which
   lists a 720x1080 `Poster` image — already the 2:3 the tile wants, and it
   accepts `?w=&h=&q=` resizing.
-- **Pragmata** is on Steam but has no portrait capsule (unreleased; assets sit
-  under a hashed path). It uses the 460x215 `header.jpg`. A straight
-  `object-fit: cover` would throw away ~70% of the width, so `.game-art--wide`
-  letterboxes the real art over a blurred, zoomed copy of itself instead.
+- **Pragmata** does have a portrait capsule, just not at the legacy path —
+  `/steam/apps/3357650/library_600x900.jpg` is a 404. Newer apps publish it
+  under a per-asset hash: `store_item_assets/steam/apps/<id>/<hash>/`
+  `library_capsule.jpg` (300x450, the 2:3 the tile wants). The hashes come
+  from `api.steamcmd.net/v1/info/<appid>` under `common.library_assets_full`,
+  which is the way to resolve this for any newer title. The old letterbox
+  workaround (`.game-art--wide`, a blurred zoomed copy behind the 460x215
+  `header.jpg`) has been removed — don't reintroduce it.
 
 Details worth not rediscovering:
 
@@ -522,7 +593,9 @@ The owner asked for speed; don't slow them back down for "elegance".
 Ambient motion is the exception and stays slow (blooms 19-23s, jellyfish rise
 48-82s). Speeding those to match the UI reads as frantic, not fast.
 
-Also moving: marine snow (26 motes, randomised size/speed, desktop only), the
+Also moving: shooting stars (7 on desktop, 3 under 720px — a star is two
+composited properties on a 2px box, so phones get a smaller flock rather
+than none), marine snow (26 motes, randomised size/speed, desktop only), the
 contribution cells stagger in by week, the contribution total counts up, game
 covers lift on hover, and the display name carries a slow gradient shimmer.
 

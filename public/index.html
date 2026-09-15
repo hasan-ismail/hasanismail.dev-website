@@ -20,6 +20,7 @@
 <!-- Backdrop artwork. Blurred and darkened in CSS so the near-white light
      rays in the source cannot drop text below AA. -->
 <div class="backdrop" aria-hidden="true"></div>
+<div class="tint" aria-hidden="true"></div>
 
 <div class="cursor-glow" aria-hidden="true"></div>
 <!-- The veil is LAST in the backdrop stack on purpose: it must sit above the
@@ -88,15 +89,15 @@
             vendor and no subscription.
           </p>
           <p class="pc-bio-line">
-            By day I work at
+            I also work at
             <a class="pc-bio-link" href="https://www.asmatec.com/" rel="noopener">AsmaTec</a>,
-            on managed IT, cybersecurity and network infrastructure for businesses
-            across NY, NJ and PA.
+            handling managed IT, cybersecurity and network infrastructure for
+            businesses across NY, NJ and PA.
           </p>
           <ul class="bio-lines">
-            <li>Networking and Proxmox</li>
-            <li>I self-host everything — this site included</li>
-            <li>Strong morals, ethics, and a shared goal</li>
+            <li>I am a Proxmox and networking nerd</li>
+            <li>I like to self-host everything — even this website</li>
+            <li>I have strong morals and ethics, and believe in a shared goal</li>
             <li>I enjoy rejecting convenience</li>
           </ul>
         </div>
@@ -114,7 +115,7 @@
                 <span class="game-star" title="Favourite">★</span>
               </a>
               <a class="game" href="https://store.steampowered.com/app/3357650/" rel="noopener" style="--g:1">
-                <span class="game-art game-art--wide" style="--art:url(&quot;https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3357650/e32e168b25ed68a0cf6264c220c07e96c2abfb56/header.jpg&quot;)"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3357650/e32e168b25ed68a0cf6264c220c07e96c2abfb56/header.jpg" alt="" loading="lazy" width="120" height="56"></span>
+                <span class="game-art"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3357650/2c65f388cb3ac6631c8a38ff1a59903263fc70e9/library_capsule.jpg" alt="" loading="lazy" width="120" height="180"></span>
                 <span class="game-name">Pragmata</span>
               </a>
               <a class="game" href="https://store.steampowered.com/app/1150690/" rel="noopener" style="--g:2">
@@ -151,7 +152,13 @@
         <p class="pc-label" id="dc-conn-label" hidden>Connections</p>
         <div class="pc-connections" id="dc-connections"></div>
 
-        <p class="pc-location">Queens, NYC</p>
+        <p class="pc-location">
+          Queens, NYC
+          <span class="pc-tz" id="pc-tz" tabindex="0" role="button" aria-expanded="false">
+            EST
+            <span class="pc-tz-pop" role="tooltip"><span id="pc-tz-clock">--:--:--</span></span>
+          </span>
+        </p>
 
         <button type="button" class="motion-toggle" id="motion-toggle" aria-pressed="false">
           <span class="mt-dot" aria-hidden="true"></span>
@@ -167,11 +174,11 @@
     <svg class="wave" viewBox="0 0 400 20" preserveAspectRatio="none" aria-hidden="true">
       <defs>
         <linearGradient id="wave-grad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stop-color="#22d3c4"/>
-          <stop offset="25%"  stop-color="#38bdf8"/>
-          <stop offset="50%"  stop-color="#8b5cf6"/>
-          <stop offset="75%"  stop-color="#ec4899"/>
-          <stop offset="100%" stop-color="#e6b054"/>
+          <stop offset="0%"   stop-color="#7ae8fb"/>
+          <stop offset="22%"  stop-color="#7ef0c8"/>
+          <stop offset="46%"  stop-color="#b3b8ff"/>
+          <stop offset="72%"  stop-color="#ff8ada"/>
+          <stop offset="100%" stop-color="#ffd79a"/>
         </linearGradient>
       </defs>
       <path d="M0 10 Q 25 0 50 10 T 100 10 T 150 10 T 200 10 T 250 10 T 300 10 T 350 10 T 400 10"

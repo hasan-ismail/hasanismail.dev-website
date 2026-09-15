@@ -687,6 +687,46 @@ function countUp(node, to) {
   });
 }
 
+// Returns true once the figure is on screen. The server computes it from a
+// ~14-repo crawl and GitHub answers 202 while it builds cold stats, so on a
+// fresh process the first page load legitimately has nothing to show yet.
+function renderLinesAdded(la) {
+  const loc = document.getElementById("gh-loc");
+  if (!loc) return true; // nothing to fill; stop polling
+  // Only render a COMPLETE count — a partial sum reads as authoritative and
+  // would be wrong by two orders of magnitude. Repos that are permanently
+  // unavailable contribute zero and are reported in the tooltip rather than
+  // hiding the whole figure.
+  if (!la || !la.publishable || !(la.added > 0)) return false;
+  const n = la.added;
+  loc.textContent = n.toLocaleString() + " lines added";
+  loc.title =
+    n.toLocaleString() + " added, " + la.removed.toLocaleString() +
+    " removed across " + la.repos + " public repos in the last year" +
+    (la.coverage < 1
+      ? " (" + Math.round(la.coverage * 100) + "% of repos resolved)"
+      : "");
+  loc.hidden = false;
+  return true;
+}
+
+// Ask again a few times rather than making the visitor reload. Bounded: the
+// server backs off for an hour when rate-limited, and a page left open all
+// day should not keep retrying something that is not coming.
+function pollLinesAdded(tries = 0) {
+  if (tries >= 6) return;
+  setTimeout(async () => {
+    try {
+      const res = await fetch("/api/github");
+      if (!res.ok) throw new Error("status " + res.status);
+      const d = await res.json();
+      if (!renderLinesAdded(d.linesAdded)) pollLinesAdded(tries + 1);
+    } catch {
+      pollLinesAdded(tries + 1);
+    }
+  }, 20000);
+}
+
 async function loadContributions() {
   const graph = document.getElementById("gh-graph");
   const loading = document.getElementById("gh-loading");
@@ -731,23 +771,7 @@ async function loadContributions() {
     // Lines added. Deliberately labelled "added", not "written" — it is the
     // sum of per-week additions across public non-fork repos, so it includes
     // things like lockfiles and excludes private work entirely.
-    const loc = document.getElementById("gh-loc");
-    // Only render a COMPLETE count — a partial sum reads as authoritative and
-    // would be wrong by two orders of magnitude.
-    // Render when the server says the figure is publishable — i.e. nothing was
-    // still being computed. Repos that are permanently unavailable contribute
-    // zero and are reported in the tooltip rather than hiding the whole figure.
-    if (loc && data.linesAdded && data.linesAdded.publishable && data.linesAdded.added > 0) {
-      const n = data.linesAdded.added;
-      loc.textContent = "· " + n.toLocaleString() + " lines added";
-      loc.title =
-        n.toLocaleString() + " added, " + data.linesAdded.removed.toLocaleString() +
-        " removed across " + data.linesAdded.repos + " public repos in the last year" +
-        (data.linesAdded.coverage < 1
-          ? " (" + Math.round(data.linesAdded.coverage * 100) + "% of repos resolved)"
-          : "");
-      loc.hidden = false;
-    }
+    if (!renderLinesAdded(data.linesAdded)) pollLinesAdded();
   } catch {
     if (loading) loading.textContent = "Couldn't load contributions.";
   }
@@ -1010,26 +1034,29 @@ initMotionToggle();
 //
 // Occasional, not constant: each star spends most of its cycle parked
 // off-screen, and the durations/delays are randomised so they never sync up.
-// Desktop only (CSS hides the layer under 720px) and skipped under reduced
-// motion, same as the other ambient layers.
+// Phones get a smaller flock rather than none: a star is two composited
+// properties on a 2px box, which is nothing like the cost of the animated
+// jellyfish this layer replaced. Skipped under reduced motion.
 
 function initShootingStars() {
   if (prefersReducedMotion()) return;
-  if (window.matchMedia("(max-width: 720px)").matches) return;
+  const narrow = window.matchMedia("(max-width: 720px)").matches;
 
   const HUES = [
     ["#ffffff", "255 255 255"],
-    ["#67e8f9", "103 232 249"],
-    ["#a5b4fc", "165 180 252"],
-    ["#f472d0", "244 114 208"],
-    ["#ffcf6b", "255 207 107"],
+    ["#7ae8fb", "122 232 251"],
+    ["#b3b8ff", "179 184 255"],
+    ["#ff8ada", "255 138 218"],
+    ["#ffd79a", "255 215 154"],
+    ["#7ef0c8", "126 240 200"],
+    ["#ffa9b8", "255 169 184"],
   ];
 
   const layer = document.createElement("div");
   layer.className = "shooting";
   layer.setAttribute("aria-hidden", "true");
 
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < (narrow ? 3 : 7); i++) {
     const star = document.createElement("i");
     const [hue, rgb] = HUES[i % HUES.length];
     star.style.setProperty("--star", hue);
@@ -1037,7 +1064,7 @@ function initShootingStars() {
     star.style.setProperty("--star-a", (22 + Math.random() * 22).toFixed(1) + "deg");
     star.style.top = (Math.random() * 55).toFixed(1) + "%";
     star.style.left = "-15vw";
-    star.style.width = (90 + Math.random() * 90).toFixed(0) + "px";
+    star.style.width = (narrow ? 70 + Math.random() * 60 : 90 + Math.random() * 90).toFixed(0) + "px";
     star.style.animationDuration = (14 + Math.random() * 16).toFixed(1) + "s";
     star.style.animationDelay = (-Math.random() * 30).toFixed(1) + "s";
     layer.appendChild(star);
@@ -1046,3 +1073,63 @@ function initShootingStars() {
 }
 
 initShootingStars();
+
+// ---- timezone chip ----
+//
+// The chip is labelled "EST" because that is how the owner refers to it; the
+// time itself is formatted in America/New_York, so it stays correct across
+// the DST boundary rather than drifting an hour for half the year.
+//
+// The clock only ticks while the chip is open. A permanent 1s timer for a
+// tooltip nobody is looking at is exactly the kind of idle wake-up this page
+// avoids elsewhere (the pointer glow parks itself for the same reason).
+function initTimezone() {
+  const chip = document.getElementById("pc-tz");
+  const out = document.getElementById("pc-tz-clock");
+  if (!chip || !out) return;
+
+  let timer = null;
+  let fmt;
+  try {
+    fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true,
+    });
+  } catch {
+    // No IANA tz database (very old engines). Hide rather than show a wrong time.
+    chip.hidden = true;
+    return;
+  }
+
+  const paint = () => {
+    const t = fmt.format(new Date());
+    out.textContent = t;
+    chip.setAttribute("aria-label", "Eastern Time, currently " + t);
+  };
+  const open = () => {
+    paint();
+    if (!timer) timer = setInterval(paint, 1000);
+    chip.setAttribute("aria-expanded", "true");
+  };
+  const close = () => {
+    if (timer) { clearInterval(timer); timer = null; }
+    chip.setAttribute("aria-expanded", "false");
+  };
+
+  chip.addEventListener("pointerenter", open);
+  chip.addEventListener("pointerleave", close);
+  chip.addEventListener("focus", open);
+  chip.addEventListener("blur", close);
+  // Touch has no hover, so a tap pins the popover open.
+  chip.addEventListener("click", () => {
+    const on = chip.classList.toggle("is-open");
+    if (on) open(); else close();
+  });
+  chip.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); chip.click(); }
+  });
+
+  paint(); // so the aria-label is meaningful before any interaction
+}
+
+initTimezone();
