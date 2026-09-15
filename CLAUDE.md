@@ -157,7 +157,8 @@ components never hardcode a hex.
 ### Contrast rule — read before changing any colour
 
 Contrast was computed against **`--glass-strong`**, not `--glass`. That is the
-binding constraint: `--glass-strong` is the fill for `.presence` (base state),
+binding constraint: `--glass-strong` is the fill for `.pc-presence` and
+`.pc-btn` (both base state),
 `.link-item:hover` and `.status-card:hover`, and it composites *lighter* than
 `--glass` over every backdrop. Measuring against `--glass` overstates every
 ratio by roughly a full point.
@@ -280,12 +281,24 @@ once between the Discord card and the links. `wave-breathe` multiplies that base
 down by ×0.8 at the trough, which is why the base is 0.85 rather than 0.6 — at
 0.6 the trough falls to 2.9:1 against a teal-lit ground.
 
-### Discord profile card
+### Profile card
 
-Live from Lanyard. Structure: gradient banner (with the animated nameplate webm
-over it) → avatar with APNG decoration and a presence dot → display name,
-`@username`, guild tag → custom status → "Currently" activity list → platform
-chips.
+**The bio and the live Discord profile are one merged surface** —
+`.profile-card`, `pc-*` classes — laid out to mirror Discord's own profile
+panel: banner (with the animated nameplate webm over it) → avatar with APNG
+decoration and a presence dot → display name → `@handle · raid is backup` +
+guild tag → badges → action buttons → presence pill → custom status →
+"Currently" → bio → games → member since → connections. Don't split it back
+into two cards.
+
+The panel is deliberately **not** `position: sticky`. Merged, it is taller
+than most viewports, and a sticky box taller than the screen traps its own
+bottom off-screen permanently.
+
+Badges are decoded from the `public_flags` bitfield in `badgesFor()` — only
+flags Lanyard actually exposes, nothing inferred. Favourite games are static
+content in a native `<details>`, collapsed by default, so the toggle needs no
+JS and stays keyboard accessible.
 
 Details worth not rediscovering:
 
@@ -304,7 +317,7 @@ Details worth not rediscovering:
   cannot point an `<img>` at any origin.
 - Activity **buttons are labels only** — Discord never exposes their URLs to
   third parties. They render as chips, not links. Do not invent a destination.
-- Lanyard has no banner and no "About Me". The bio lines in the identity panel
+- Lanyard has no banner and no "About Me". The bio lines in the profile card
   are static content, not a live feed.
 
 ### Status cards — "My homelab"
@@ -325,7 +338,7 @@ state is its **final** state, and keyframes animate *from* hidden using
 `backwards` fill:
 
 ```css
-.thing { animation: rise-in 0.85s var(--ease-out-expo) backwards; }
+.thing { animation: rise-in 0.42s var(--ease-out-expo) backwards; }
 @keyframes rise-in { from { opacity: 0; transform: translateY(18px); } }
 ```
 
@@ -339,6 +352,13 @@ resolution-independent) then breathes; link pills lift 3px with a teal sheen
 sweeping across and an arrow nudging in; status tiles lift 2px; the pointer glow
 eases toward the cursor at 0.12/frame; numeric readouts tween between values and
 flash teal.
+
+**Timings are deliberately quick** — entrance ~0.26-0.42s, staggers
+0.10-0.28s, transitions ~0.18s, number tweens 320ms, pointer lerp 0.2/frame.
+The owner asked for speed; don't slow them back down for "elegance".
+
+Ambient motion is the exception and stays slow (blooms 19-23s, jellyfish rise
+48-82s). Speeding those to match the UI reads as frantic, not fast.
 
 `@media (prefers-reduced-motion: reduce)` disables **all** animation and
 transition including pseudo-elements, and hides the pointer glow. Non-negotiable.
@@ -364,7 +384,7 @@ object. With `subscribe_to_ids` (plural) it would be keyed by user id — an eas
 mistake to make when reading the Lanyard docs.
 
 What Lanyard does **not** provide: the profile banner and the "About Me" text.
-The bio lines in the identity panel are static content in `index.html`.
+The bio lines, games, member-since date and connections are static content in `index.html`.
 
 ## Local dev
 
