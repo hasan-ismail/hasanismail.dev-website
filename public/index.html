@@ -3,16 +3,134 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#060f1a">
 <title>Hasan Ismail</title>
-<meta name="description" content="Hasan Ismail — founder and lead developer of OpenMasjid Solutions.">
+<meta name="description" content="Hasan Ismail — founder and lead developer of OpenMasjid Solutions. Self-hosted everything.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪼</text></svg>">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+<!-- Ambient blooms -->
 <div class="bloom bloom-1" aria-hidden="true"></div>
 <div class="bloom bloom-2" aria-hidden="true"></div>
 <div class="bloom bloom-3" aria-hidden="true"></div>
+
+<!-- Drifting jellyfish. Purely decorative: aria-hidden, pointer-events:none. -->
+<div class="jellies" aria-hidden="true">
+  <div class="jelly jelly--1"><div class="jelly__body">
+    <svg class="jelly__svg" viewBox="0 0 120 260" fill="none" focusable="false">
+      <g class="jf-strands jf-strands--a" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".34">
+        <path d="M25 74C17 116 31 146 21 196"/><path d="M41 82C35 126 47 158 39 214"/><path d="M60 88C56 134 64 172 58 232"/>
+      </g>
+      <g class="jf-strands jf-strands--b" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".26">
+        <path d="M95 74C103 116 89 146 99 196"/><path d="M79 82C85 126 73 158 81 214"/><path d="M70 86C74 130 66 168 72 224"/>
+      </g>
+      <g class="jf-arms" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-opacity=".28">
+        <path d="M47 82C41 104 51 118 45 140"/><path d="M55 86C51 112 59 128 53 152"/><path d="M65 86C69 112 61 128 67 152"/><path d="M73 82C79 104 69 118 75 140"/>
+      </g>
+      <g class="jf-bell">
+        <path d="M14 70C14 34 34 10 60 10s46 24 46 60c0 9-20 16-46 16S14 79 14 70Z" fill="currentColor" fill-opacity=".14"/>
+        <path d="M16 68c8 16 18 20 26 12 7-7 13 8 18 8s11-15 18-8c8 8 18 4 26-12" stroke="currentColor" stroke-width="1.3" stroke-opacity=".3" stroke-linecap="round"/>
+        <path d="M16 70C16 36 35 12 60 12s44 24 44 58" stroke="currentColor" stroke-width="1.4" stroke-opacity=".5" stroke-linecap="round"/>
+        <path d="M30 58c0-19 12-33 25-36" stroke="currentColor" stroke-width="2.6" stroke-opacity=".36" stroke-linecap="round"/>
+        <ellipse cx="60" cy="56" rx="17" ry="10" fill="currentColor" fill-opacity=".2"/>
+        <ellipse cx="60" cy="56" rx="8" ry="5" fill="currentColor" fill-opacity=".3"/>
+      </g>
+    </svg>
+  </div></div>
+  <div class="jelly jelly--2"><div class="jelly__body">
+    <svg class="jelly__svg" viewBox="0 0 120 260" fill="none" focusable="false">
+      <g class="jf-strands jf-strands--a" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".34">
+        <path d="M25 74C17 116 31 146 21 196"/><path d="M41 82C35 126 47 158 39 214"/><path d="M60 88C56 134 64 172 58 232"/>
+      </g>
+      <g class="jf-strands jf-strands--b" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".26">
+        <path d="M95 74C103 116 89 146 99 196"/><path d="M79 82C85 126 73 158 81 214"/><path d="M70 86C74 130 66 168 72 224"/>
+      </g>
+      <g class="jf-arms" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-opacity=".28">
+        <path d="M47 82C41 104 51 118 45 140"/><path d="M55 86C51 112 59 128 53 152"/><path d="M65 86C69 112 61 128 67 152"/><path d="M73 82C79 104 69 118 75 140"/>
+      </g>
+      <g class="jf-bell">
+        <path d="M14 70C14 34 34 10 60 10s46 24 46 60c0 9-20 16-46 16S14 79 14 70Z" fill="currentColor" fill-opacity=".14"/>
+        <path d="M16 68c8 16 18 20 26 12 7-7 13 8 18 8s11-15 18-8c8 8 18 4 26-12" stroke="currentColor" stroke-width="1.3" stroke-opacity=".3" stroke-linecap="round"/>
+        <path d="M16 70C16 36 35 12 60 12s44 24 44 58" stroke="currentColor" stroke-width="1.4" stroke-opacity=".5" stroke-linecap="round"/>
+        <path d="M30 58c0-19 12-33 25-36" stroke="currentColor" stroke-width="2.6" stroke-opacity=".36" stroke-linecap="round"/>
+        <ellipse cx="60" cy="56" rx="17" ry="10" fill="currentColor" fill-opacity=".2"/>
+        <ellipse cx="60" cy="56" rx="8" ry="5" fill="currentColor" fill-opacity=".3"/>
+      </g>
+    </svg>
+  </div></div>
+  <div class="jelly jelly--3"><div class="jelly__body">
+    <svg class="jelly__svg" viewBox="0 0 120 260" fill="none" focusable="false">
+      <g class="jf-strands jf-strands--a" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".34">
+        <path d="M25 74C17 116 31 146 21 196"/><path d="M41 82C35 126 47 158 39 214"/><path d="M60 88C56 134 64 172 58 232"/>
+      </g>
+      <g class="jf-strands jf-strands--b" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".26">
+        <path d="M95 74C103 116 89 146 99 196"/><path d="M79 82C85 126 73 158 81 214"/><path d="M70 86C74 130 66 168 72 224"/>
+      </g>
+      <g class="jf-arms" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-opacity=".28">
+        <path d="M47 82C41 104 51 118 45 140"/><path d="M55 86C51 112 59 128 53 152"/><path d="M65 86C69 112 61 128 67 152"/><path d="M73 82C79 104 69 118 75 140"/>
+      </g>
+      <g class="jf-bell">
+        <path d="M14 70C14 34 34 10 60 10s46 24 46 60c0 9-20 16-46 16S14 79 14 70Z" fill="currentColor" fill-opacity=".14"/>
+        <path d="M16 68c8 16 18 20 26 12 7-7 13 8 18 8s11-15 18-8c8 8 18 4 26-12" stroke="currentColor" stroke-width="1.3" stroke-opacity=".3" stroke-linecap="round"/>
+        <path d="M16 70C16 36 35 12 60 12s44 24 44 58" stroke="currentColor" stroke-width="1.4" stroke-opacity=".5" stroke-linecap="round"/>
+        <path d="M30 58c0-19 12-33 25-36" stroke="currentColor" stroke-width="2.6" stroke-opacity=".36" stroke-linecap="round"/>
+        <ellipse cx="60" cy="56" rx="17" ry="10" fill="currentColor" fill-opacity=".2"/>
+        <ellipse cx="60" cy="56" rx="8" ry="5" fill="currentColor" fill-opacity=".3"/>
+      </g>
+    </svg>
+  </div></div>
+  <div class="jelly jelly--4"><div class="jelly__body">
+    <svg class="jelly__svg" viewBox="0 0 120 260" fill="none" focusable="false">
+      <g class="jf-strands jf-strands--a" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".34">
+        <path d="M25 74C17 116 31 146 21 196"/><path d="M41 82C35 126 47 158 39 214"/><path d="M60 88C56 134 64 172 58 232"/>
+      </g>
+      <g class="jf-strands jf-strands--b" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".26">
+        <path d="M95 74C103 116 89 146 99 196"/><path d="M79 82C85 126 73 158 81 214"/><path d="M70 86C74 130 66 168 72 224"/>
+      </g>
+      <g class="jf-arms" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-opacity=".28">
+        <path d="M47 82C41 104 51 118 45 140"/><path d="M55 86C51 112 59 128 53 152"/><path d="M65 86C69 112 61 128 67 152"/><path d="M73 82C79 104 69 118 75 140"/>
+      </g>
+      <g class="jf-bell">
+        <path d="M14 70C14 34 34 10 60 10s46 24 46 60c0 9-20 16-46 16S14 79 14 70Z" fill="currentColor" fill-opacity=".14"/>
+        <path d="M16 68c8 16 18 20 26 12 7-7 13 8 18 8s11-15 18-8c8 8 18 4 26-12" stroke="currentColor" stroke-width="1.3" stroke-opacity=".3" stroke-linecap="round"/>
+        <path d="M16 70C16 36 35 12 60 12s44 24 44 58" stroke="currentColor" stroke-width="1.4" stroke-opacity=".5" stroke-linecap="round"/>
+        <path d="M30 58c0-19 12-33 25-36" stroke="currentColor" stroke-width="2.6" stroke-opacity=".36" stroke-linecap="round"/>
+        <ellipse cx="60" cy="56" rx="17" ry="10" fill="currentColor" fill-opacity=".2"/>
+        <ellipse cx="60" cy="56" rx="8" ry="5" fill="currentColor" fill-opacity=".3"/>
+      </g>
+    </svg>
+  </div></div>
+  <div class="jelly jelly--5"><div class="jelly__body">
+    <svg class="jelly__svg" viewBox="0 0 120 260" fill="none" focusable="false">
+      <g class="jf-strands jf-strands--a" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".34">
+        <path d="M25 74C17 116 31 146 21 196"/><path d="M41 82C35 126 47 158 39 214"/><path d="M60 88C56 134 64 172 58 232"/>
+      </g>
+      <g class="jf-strands jf-strands--b" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".26">
+        <path d="M95 74C103 116 89 146 99 196"/><path d="M79 82C85 126 73 158 81 214"/><path d="M70 86C74 130 66 168 72 224"/>
+      </g>
+      <g class="jf-arms" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-opacity=".28">
+        <path d="M47 82C41 104 51 118 45 140"/><path d="M55 86C51 112 59 128 53 152"/><path d="M65 86C69 112 61 128 67 152"/><path d="M73 82C79 104 69 118 75 140"/>
+      </g>
+      <g class="jf-bell">
+        <path d="M14 70C14 34 34 10 60 10s46 24 46 60c0 9-20 16-46 16S14 79 14 70Z" fill="currentColor" fill-opacity=".14"/>
+        <path d="M16 68c8 16 18 20 26 12 7-7 13 8 18 8s11-15 18-8c8 8 18 4 26-12" stroke="currentColor" stroke-width="1.3" stroke-opacity=".3" stroke-linecap="round"/>
+        <path d="M16 70C16 36 35 12 60 12s44 24 44 58" stroke="currentColor" stroke-width="1.4" stroke-opacity=".5" stroke-linecap="round"/>
+        <path d="M30 58c0-19 12-33 25-36" stroke="currentColor" stroke-width="2.6" stroke-opacity=".36" stroke-linecap="round"/>
+        <ellipse cx="60" cy="56" rx="17" ry="10" fill="currentColor" fill-opacity=".2"/>
+        <ellipse cx="60" cy="56" rx="8" ry="5" fill="currentColor" fill-opacity=".3"/>
+      </g>
+    </svg>
+  </div></div>
+</div>
+
 <div class="cursor-glow" aria-hidden="true"></div>
+<!-- The veil is LAST in the backdrop stack on purpose: it must sit above the
+     blooms AND the cursor glow, otherwise muted text drops below WCAG AA when
+     either drifts underneath it. -->
+<div class="veil" aria-hidden="true"></div>
 
 <div class="layout">
 
@@ -21,49 +139,117 @@
       <h1>Hasan Ismail</h1>
       <p class="role">Founder &amp; lead developer, OpenMasjid Solutions</p>
 
-      <div class="presence" id="presence">
-        <span class="dot" id="presence-dot" aria-hidden="true"></span>
-        <span id="presence-text">checking presence&hellip;</span>
+      <div class="presence">
+        <span class="dot" id="presence-dot"></span>
+        <span id="presence-text">connecting&hellip;</span>
       </div>
 
       <p class="bio">
-        Building open-source, self-hosted software for masjids —
-        and running the homelab that keeps a chunk of it online.
+        Building open-source, self-hosted software for masjids — and running
+        the homelab that keeps a chunk of it online.
       </p>
 
-      <p class="location">Queens, NYC</p>
+      <ul class="bio-lines">
+        <li>I work in IT and I like to make stuff</li>
+        <li>I self-host everything</li>
+        <li>Networking and Proxmox</li>
+        <li>Strong morals, ethics, and a shared goal</li>
+        <li>I enjoy rejecting convenience</li>
+      </ul>
+
+      <p class="location">Queens, NYC &middot; raid is backup</p>
     </div>
   </aside>
 
   <main class="content">
+
+    <!-- Live Discord profile, via Lanyard -->
+    <section class="section" aria-label="Discord profile">
+      <div class="discord-card glass">
+        <div class="dc-banner">
+          <video class="dc-nameplate" id="dc-nameplate" autoplay loop muted playsinline hidden></video>
+        </div>
+        <div class="dc-body">
+          <div class="dc-avatar-wrap">
+            <img class="dc-avatar" id="dc-avatar" alt="" width="76" height="76">
+            <img class="dc-decoration" id="dc-decoration" alt="" hidden>
+            <span class="dc-presence-dot" id="dc-presence-dot"></span>
+          </div>
+          <div class="dc-names">
+            <span class="dc-display" id="dc-display">Hasan Ismail</span>
+            <span class="dc-username" id="dc-username"></span>
+            <span class="dc-tag" id="dc-tag" hidden></span>
+          </div>
+          <p class="dc-custom" id="dc-custom" hidden></p>
+
+          <div id="dc-activity-wrap" hidden>
+            <p class="dc-section-label">Currently</p>
+            <div id="dc-activities"></div>
+          </div>
+
+          <div class="dc-platforms" id="dc-platforms"></div>
+        </div>
+      </div>
+    </section>
 
     <svg class="wave" viewBox="0 0 400 20" preserveAspectRatio="none" aria-hidden="true">
       <path d="M0 10 Q 25 0 50 10 T 100 10 T 150 10 T 200 10 T 250 10 T 300 10 T 350 10 T 400 10"
             fill="none" stroke="currentColor" stroke-width="2" pathLength="1"/>
     </svg>
 
-    <section class="links" aria-label="Links">
-      <h2>Links</h2>
+    <section class="section section-links" aria-label="Links">
+      <h2 class="section-title">Links</h2>
       <ul class="link-list">
         <li class="link-item glass">
-          <a href="https://github.com/OpenMasjid-Solutions">github.com/OpenMasjid-Solutions</a>
-          <span class="link-desc">Open-source masjid management platform</span>
+          <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2.1c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.4-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg></span>
+          <span class="link-text">
+            <a href="https://github.com/OpenMasjid-Solutions" rel="noopener">github.com/OpenMasjid-Solutions</a>
+            <span class="link-desc">Open-source masjid management platform</span>
+          </span>
         </li>
         <li class="link-item glass">
-          <a href="https://github.com/hasan-ismail">github.com/hasan-ismail</a>
-          <span class="link-desc">Personal projects — The Machine, OpenAudio</span>
+          <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2.1c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.4-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg></span>
+          <span class="link-text">
+            <a href="https://github.com/hasan-ismail" rel="noopener">github.com/hasan-ismail</a>
+            <span class="link-desc">Personal projects — The Machine, OpenAudio</span>
+          </span>
         </li>
         <li class="link-item glass">
-          <a href="https://openmasjidsolutions.org">openmasjidsolutions.org</a>
-          <span class="link-desc">OpenMasjid Solutions</span>
+          <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c2.6 2.8 4 6 4 9.5s-1.4 6.7-4 9.5c-2.6-2.8-4-6-4-9.5s1.4-6.7 4-9.5Z"/></svg></span>
+          <span class="link-text">
+            <a href="https://openmasjidsolutions.org" rel="noopener">openmasjidsolutions.org</a>
+            <span class="link-desc">OpenMasjid Solutions</span>
+          </span>
         </li>
-        <!-- add more links here — copy an <li class="link-item glass"> block above,
-             e.g. Discord invite, X/Twitter, email, or a public OpenMasjidOS URL -->
+        <li class="link-item glass">
+          <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.3 5.3A17 17 0 0 0 15 4l-.2.4a15.7 15.7 0 0 1 3.8 1.2 13.4 13.4 0 0 0-11.2 0A15.7 15.7 0 0 1 11.2 4.4L11 4a17 17 0 0 0-4.3 1.3C4 9.3 3.3 13.2 3.6 17a17.2 17.2 0 0 0 5.2 2.6l.6-1c-.6-.2-1.2-.5-1.8-.9l.4-.3a12.2 12.2 0 0 0 10 0l.4.3c-.6.4-1.2.7-1.8.9l.6 1a17.2 17.2 0 0 0 5.2-2.6c.4-4.4-.7-8.3-3.1-11.7ZM9.3 14.7c-1 0-1.9-.9-1.9-2.1 0-1.2.8-2.1 1.9-2.1s1.9 1 1.9 2.1c0 1.2-.8 2.1-1.9 2.1Zm5.4 0c-1 0-1.9-.9-1.9-2.1 0-1.2.8-2.1 1.9-2.1s1.9 1 1.9 2.1c0 1.2-.8 2.1-1.9 2.1Z"/></svg></span>
+          <span class="link-text">
+            <a href="https://discord.gg/H932GWJs6H" rel="noopener">discord.gg/H932GWJs6H</a>
+            <span class="link-desc">OpenMasjid Solutions Discord</span>
+          </span>
+        </li>
+        <li class="link-item glass">
+          <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.3 5.3A17 17 0 0 0 15 4l-.2.4a15.7 15.7 0 0 1 3.8 1.2 13.4 13.4 0 0 0-11.2 0A15.7 15.7 0 0 1 11.2 4.4L11 4a17 17 0 0 0-4.3 1.3C4 9.3 3.3 13.2 3.6 17a17.2 17.2 0 0 0 5.2 2.6l.6-1c-.6-.2-1.2-.5-1.8-.9l.4-.3a12.2 12.2 0 0 0 10 0l.4.3c-.6.4-1.2.7-1.8.9l.6 1a17.2 17.2 0 0 0 5.2-2.6c.4-4.4-.7-8.3-3.1-11.7ZM9.3 14.7c-1 0-1.9-.9-1.9-2.1 0-1.2.8-2.1 1.9-2.1s1.9 1 1.9 2.1c0 1.2-.8 2.1-1.9 2.1Zm5.4 0c-1 0-1.9-.9-1.9-2.1 0-1.2.8-2.1 1.9-2.1s1.9 1 1.9 2.1c0 1.2-.8 2.1-1.9 2.1Z"/></svg></span>
+          <span class="link-text">
+            <a href="https://discord.com/users/761016030892916737" rel="noopener">Add me on Discord</a>
+            <span class="link-desc">hasanismail.</span>
+          </span>
+        </li>
+        <li class="link-item glass">
+          <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a2.1 2.1 0 0 0-3.5-1.5 10.3 10.3 0 0 0-5.6-1.8l1-4.5 3.1.7a1.8 1.8 0 1 0 .2-1.2l-3.7-.8a.6.6 0 0 0-.7.5l-1.1 5.1a10.3 10.3 0 0 0-5.7 1.8A2.1 2.1 0 1 0 3.6 14a4 4 0 0 0 0 .6c0 3.2 3.8 5.8 8.4 5.8s8.4-2.6 8.4-5.8a4 4 0 0 0 0-.6A2.1 2.1 0 0 0 22 12ZM7.5 13.4a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm8.4 4a5.6 5.6 0 0 1-3.9 1.2 5.6 5.6 0 0 1-3.9-1.2.5.5 0 0 1 .7-.7 4.7 4.7 0 0 0 3.2.9 4.7 4.7 0 0 0 3.2-.9.5.5 0 1 1 .7.7Zm-.4-2.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg></span>
+          <span class="link-text">
+            <a href="https://www.reddit.com/user/hasanismail_/" rel="noopener">reddit.com/u/hasanismail_</a>
+            <span class="link-desc">Reddit</span>
+          </span>
+        </li>
+        <!-- add more links here — copy a <li class="link-item glass"> block above,
+             e.g. X/Twitter or email -->
       </ul>
     </section>
 
-    <section class="status" aria-label="My homelab">
-      <h2>My homelab</h2>
+    <section class="section section-lab" aria-label="My homelab">
+      <h2 class="section-title">My homelab</h2>
+      <div class="status-summary" id="status-summary" hidden></div>
       <div id="status-groups">
         <p class="status-loading" id="status-loading">Loading&hellip;</p>
       </div>

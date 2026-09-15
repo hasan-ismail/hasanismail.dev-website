@@ -6,7 +6,7 @@
   "services": [
     { "id": "hasanismail-dev", "name": "hasanismail.dev", "node": "node1", "type": "http", "target": "http://192.168.1.200:3300" },
     { "id": "openmasjidos", "name": "OpenMasjidOS", "node": "node1", "type": "tcp", "target": "192.168.1.18:443" },
-    { "id": "openmasjid-solutions", "name": "OpenMasjid Solutions", "node": "node1", "type": "http", "target": "http://192.168.1.241:3000", "publicUrl": "https://openmasjidsolutions.org" },
+    { "id": "openmasjid-solutions", "name": "OpenMasjid Solutions", "node": "node1", "type": "http", "target": "https://openmasjidsolutions.org", "publicUrl": "https://openmasjidsolutions.org" },
 
     { "id": "jellyfin", "name": "Jellyfin", "node": "node1", "type": "http", "target": "http://192.168.1.146:8096/health" },
     { "id": "jellyseerr", "name": "Jellyseerr", "node": "node1", "type": "http", "target": "http://192.168.1.126:5055" },

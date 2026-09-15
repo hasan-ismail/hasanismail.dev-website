@@ -12,8 +12,8 @@ it that way — don't add a bundler, a CSS framework, or a client library.
 - `server.js` — Express app. Checks every service in `config.json` on a
   60s interval, persists daily up/total aggregates to `data/history.json`,
   and serves `GET /api/status`.
-- `public/` — static frontend. Polls `/api/status` and the Lanyard API
-  (Discord presence) every 30s and renders both client-side.
+- `public/` — static frontend. Polls `/api/status` every 30s, and receives
+  Discord presence over the Lanyard **WebSocket** so it updates instantly.
 - `config.json` — the list of monitored services.
 - `data/history.json` — runtime state, gitignored. Safe to delete; it
   just resets uptime history.
@@ -111,11 +111,19 @@ to `http` without re-testing:
 | `anytype-server` | only 6379 (Redis) is exposed; there is no HTTP endpoint. |
 | `osint`, `postiebot` | no network service at all — only SSH. The check is on :22, so a green tile means "the container is alive", not "the app is healthy". |
 
-One known-failing target: **`openmasjid-solutions`** (CT 122). The container
-is up — SSH answers — but nothing listens on 3000, or on any other port in
-1–10000. It is deliberately left pointed at its intended web port so the
-tile reads "down", which is true, rather than at :22, which would show a
-misleading green. Run `ss -tlnp` in that container to find the real port.
+**`openmasjid-solutions` is the one deliberate exception to local-only
+checking.** Nothing listens on CT 122 locally — the container is up (SSH
+answers) but no port in 1–10000 serves the app, so a LAN check reported a
+permanent false "down". It therefore targets the **public** URL
+`https://openmasjidsolutions.org` (200, ~280ms), which is what visitors
+actually care about anyway.
+
+This does not weaken the invariant: that target *is* public, identical to
+its own `publicUrl`, so there is nothing to leak. Every other service is
+checked over the LAN. Don't take this as licence to point the rest at their
+public hostnames — checking through the Cloudflare Tunnel would measure the
+tunnel, not the service, and would hide a LAN-side outage behind a cached
+edge response.
 
 
 ### Two gotchas worth not rediscovering
@@ -135,214 +143,228 @@ misleading green. Run `ss -tlnp` in that container to find the real port.
 
 ---
 
-## Design system — "bioluminescence"
+## Design system — "deep bioluminescence"
 
-**Bright canvas, not dark.** This is decided. Do not reinterpret it, and
-do not let it drift toward a generic dark/SaaS dashboard look. All values
-below are the actual contract, not suggestions.
+**Dark, underwater ground.** The site was originally a light "bright canvas"
+design; it was deliberately inverted to dark at the owner's request, and the
+jellyfish motif comes from their Discord avatar. Do not drift it back toward a
+light theme, and do not let it become a generic grey SaaS dark — the ground is
+a blue-black ocean, not neutral charcoal.
 
-### Color tokens (`public/style.css` `:root`)
+Every value below is the actual contract. All colour lives in `:root`;
+components never hardcode a hex.
+
+### Contrast rule — read before changing any colour
+
+Contrast was computed against **`--glass-strong`**, not `--glass`. That is the
+binding constraint: `--glass-strong` is the fill for `.presence` (base state),
+`.link-item:hover` and `.status-card:hover`, and it composites *lighter* than
+`--glass` over every backdrop. Measuring against `--glass` overstates every
+ratio by roughly a full point.
+
+Consequence: **`--down` and `--unknown` are not body-text colours.** Over
+`--glass-strong` on a bloom they land at ~3.8–4.3:1. They are dot, ring and
+border colours only. `--violet` and `--pink` are worse still and are ambient
+only — if either ever needs to carry a glyph, add a lightened sibling token
+rather than using the accent directly.
+
+Body copy is `--ink` (17.4:1 on `--bg`) or `--ink-muted` (10.0:1); `--teal` is
+also text-safe at 10.3:1.
+
+### Colour tokens
 
 | Token | Value | Role |
 |---|---|---|
-| `--bg` | `#f7fbfc` | near-white, cool-tinted page base. **Never dark.** |
-| `--ink` | `#0b2530` | body text |
-| `--ink-muted` | `#52707c` | secondary text |
-| `--glass` | `rgba(255,255,255,0.6)` | panel fill |
-| `--glass-strong` | `rgba(255,255,255,0.8)` | presence pill fill |
-| `--glass-border` | `rgba(11,37,48,0.09)` | hairline border |
-| `--teal` | `#22d3c4` | accent |
-| `--violet` | `#8b5cf6` | accent |
-| `--pink` | `#ec4899` | accent |
-| `--up` | `#0e9f6e` | semantic: up / online |
-| `--down` | `#e11d48` | semantic: down / dnd |
-| `--unknown` | `#94a3b8` | semantic: unknown / offline |
-| `--idle` | `#d9a441` | semantic: idle |
+| `--bg` | `#060f1a` | abyssal blue-black page ground |
+| `--bg-deep` | `#03070e` | vignette edge of the body radial |
+| `--bg-lift` | `#0b1a2b` | opaque raised surface (image placeholders) |
+| `--ink` | `#e9f6f5` | body text, cyan-cast near-white |
+| `--ink-muted` | `#a2c0ca` | secondary text |
+| `--ink-rgb` | `233 246 245` | channel triplet for `rgb(… / α)` |
+| `--glass` | `rgba(16,33,50,0.58)` | panel fill — a navy that **darkens** its backdrop |
+| `--glass-strong` | `rgba(26,50,72,0.74)` | elevated/hover fill |
+| `--glass-border` | `rgba(154,226,235,0.14)` | panel hairline |
+| `--glass-border-strong` | `rgba(154,226,235,0.22)` | hover hairline |
+| `--glass-highlight` | `rgba(196,242,248,0.07)` | inset top line — this is what sells "glass" on dark |
+| `--glass-blur` | `20px` | backdrop blur |
+| `--glass-saturate` | `135%` | stops dark translucency going muddy grey |
+| `--teal` | `#22d3c4` | accent 1 (also text-safe) |
+| `--violet` | `#8b5cf6` | accent 2, **ambient only** |
+| `--pink` | `#ec4899` | accent 3, **ambient only** |
+| `--up` | `#22d07f` | up / online |
+| `--down` | `#ff5c74` | down / dnd |
+| `--unknown` | `#8aa2b2` | unknown / offline |
+| `--idle` | `#e6b054` | idle / away |
+| `--ring-up` / `--ring-down` / `--ring-idle` | `… 0.24` | dot glow rings |
+| `--veil` | `rgba(5,12,20,0.45)` | the contrast scrim (see below) |
+| `--sheen` | `rgba(34,211,196,0.16)` | link sweep gradient stop |
+| `--border-accent` | `rgba(34,211,196,0.55)` | accent edge on hover |
+| `--cursor-glow` | `rgba(34,211,196,0.17)` | pointer light |
+| `--wave-opacity` | `0.85` | base opacity of the wave motif |
+| `--focus-ring` | `#e6b054` | focus outline |
 
-**Three accent hues only** — teal, violet, pink. They are used *solely*
-for the ambient background blooms and for glow rings. Never as a flat
-card fill, never as a background, and never add a fourth.
+Three accent hues only — teal, violet, pink — used **solely** as ambient glow
+(blooms, jellyfish tint, glow rings). Never a flat card fill, never a fourth.
+The ink pair and the semantic four are a separate, non-negotiable group.
 
-The ink pair and the semantic four (`--up` / `--down` / `--unknown` /
-`--idle`) are a **separate, non-negotiable token group** — they are not
-accents and don't count against the three-accent rule.
+Glow ring alphas are `0.24`, not the `0.16` the light theme used: a 16% halo is
+nearly invisible on near-black.
 
-### Layout
+### Backdrop stack — order is load-bearing
 
-- `.layout` is a centered grid, `max-width: 980px`,
-  `padding: 48px 24px 96px`.
-- **Desktop (`min-width: 860px`)**: `grid-template-columns: 260px 1fr`,
-  `align-items: start`, `padding-top: 80px`. `.identity` is
-  `position: sticky; top: 80px`.
-- **Below 860px**: single column. The identity card comes first because
-  it's first in DOM order — don't "fix" this with `order` or flex hacks.
+Paint order is **blooms → jellyfish → cursor glow → veil → content**.
 
-> **Do not set `overflow-x: hidden` on `body`.** It makes body a scroll
-> container, which silently kills `position: sticky` on the identity
-> panel. The rule is `html { overflow-x: clip }` for this reason. The
-> blooms are `position: fixed` and create no scrollable overflow anyway.
+`.veil` must be the **last** element before `.layout`. It is a radial scrim that
+holds muted text above 4.5:1 when a bloom or the pointer light drifts beneath
+it. If it is moved to sit directly after the blooms (the intuitive place), the
+cursor glow paints *above* it and `--ink-muted` measures 3.95:1 on bare ground —
+a real, measured failure. Do not reorder these.
 
 ### Background blooms
 
-Three blurred circular divs, `position: fixed`, `border-radius: 50%`,
-`filter: blur(90px)`, `pointer-events: none`, `z-index: 0`, each parked
-off-canvas at a different corner:
+Three fixed blurred circles, `filter: blur(90px)`, `pointer-events: none`:
 
-| | size | position | color | opacity | animation |
+| | size | position | colour | opacity | animation |
 |---|---|---|---|---|---|
-| `.bloom-1` | 480px | top `-160px`, left `-120px` | teal | 0.28 | `drift1 26s` |
-| `.bloom-2` | 420px | top `30%`, right `-160px` | violet | 0.22 | `drift2 32s` |
-| `.bloom-3` | 380px | bottom `-140px`, left `20%` | pink | 0.18 | `drift1 30s reverse` |
+| `.bloom-1` | 480px | top `-170px`, left `-130px` | teal | 0.30 | `drift1 26s` |
+| `.bloom-2` | 420px | top `28%`, right `-170px` | violet | 0.26 | `drift2 32s` |
+| `.bloom-3` | 380px | bottom `-150px`, left `18%` | pink | 0.20 | `drift1 30s reverse` |
 
-Both keyframes are `ease-in-out infinite` and animate `transform:
-translate` only (~30-40px). These are the **only** continuously animating
-elements on the page.
+Keep the bloom `scale()` amplitude ≤1.06 or they expand past their intended
+footprint.
+
+### Jellyfish
+
+Five inline SVG creatures (`.jelly--1` … `--5`) that rise slowly through the
+viewport. Each is a bell (dome, skirt, rim, sheen, two core ellipses), four oral
+arms and six trailing strands, all `currentColor` and tinted per-instance via
+`--jf`.
+
+Motion is deliberately split across **nested** elements so every keyframe
+touches only `transform` or `opacity`:
+
+- `.jelly` — the long rise (`jf-rise-1` / `jf-rise-2`, 74–128s, `translate3d`)
+- `.jelly__body` — an 11s bob (`translateY` + slight `rotate`)
+- `.jelly__body::before` — a blurred halo pulsing in opacity
+- `.jf-bell` — a 7s bell pulse (`scaleX`/`scaleY` about `50% 76%`)
+- `.jf-strands--a/b`, `.jf-arms` — out-of-phase `skewX` sway
+
+**No SVG filters.** A `feTurbulence`/`feDisplacementMap` version was prototyped
+and rejected: filters re-rasterise on phone GPUs and mobile is the primary
+target here. Below 720px two jellyfish are hidden and the inner detail
+animations stop — five sets of nested transforms is real cost for decoration.
 
 ### Glass panels
 
-Every bounded surface uses `.glass`: `background: var(--glass)`,
-`backdrop-filter: blur(18px)` (plus the `-webkit-` prefix), and
-`1px solid var(--glass-border)`. **No opaque card fills. No drop shadows
-anywhere.**
+`.glass` = `--glass` fill + `backdrop-filter: blur(var(--glass-blur))
+saturate(var(--glass-saturate))` + a `--glass-border` hairline + an inset
+`--glass-highlight` top line. Radii: 24px mobile / 26px desktop, 28px on the
+identity card, 999px link pills on desktop, 14px status tiles.
 
-Border radii: **28px** identity card (the `.glass` default) · **999px**
-link pills · **20px** status tiles.
+The `saturate()` is not decoration — a dark translucent fill desaturates
+whatever shows through, and without it the teal/violet behind the glass goes
+grey. This is the main reason dark glass usually looks cheap.
 
 ### Type
 
-Imported from Google Fonts in one `@import` at the top of `style.css`:
-
-- **Outfit** 500/600 — headings (`h1, h2, h3`) only.
-- **Plus Jakarta Sans** 400/500 — body default, set on `html, body`.
-- **JetBrains Mono** 400/500 — **numeric data only.**
-
-Mono is allowed on exactly three selectors: `.location`,
-`.status-readout dd`, and `.status-meta`. It must **not** be used for
-labels, headings, link text, or the presence badge. If you add a mono
-usage, it had better be a number.
+Outfit 500/600 for headings, Plus Jakarta Sans 400/500/600 for body, JetBrains
+Mono 400/500 for **numeric data only**. Mono is allowed on `.location`,
+`.status-readout dd`, `.status-meta`, `.dc-username`, `.dc-act-elapsed` and the
+`.status-summary` pill — all of which are numbers, handles or timers. Never on
+labels or headings.
 
 ### Signature motif
 
-**One** thin wavy SVG line (`.wave`), teal `currentColor`,
-`opacity: 0.45`, `height: 22px`, placed **once** at the identity-to-links
-transition. Do not repeat it, and do not add other decorative shapes.
+**One** wavy SVG line (`.wave`), teal, `--wave-opacity: 0.85`, 22px tall, placed
+once between the Discord card and the links. `wave-breathe` multiplies that base
+down by ×0.8 at the trough, which is why the base is 0.85 rather than 0.6 — at
+0.6 the trough falls to 2.9:1 against a teal-lit ground.
 
-### Presence badge
+### Discord profile card
 
-A `--glass-strong` pill inside the identity card: colored dot + status
-text. The dot glow ring is `box-shadow: 0 0 0 5px <color at 0.16 alpha>`.
+Live from Lanyard. Structure: gradient banner (with the animated nameplate webm
+over it) → avatar with APNG decoration and a presence dot → display name,
+`@username`, guild tag → custom status → "Currently" activity list → platform
+chips.
 
-| `discord_status` | class | dot | glow ring |
-|---|---|---|---|
-| online | `.dot.is-online` | `--up` | `rgba(14,159,110,0.16)` |
-| idle | `.dot.is-idle` | `--idle` | `rgba(217,164,65,0.16)` |
-| dnd | `.dot.is-dnd` | `--down` | `rgba(225,29,72,0.16)` |
-| offline | `.dot.is-offline` | `--unknown` | **none** |
+Details worth not rediscovering:
 
-The absent glow on offline/unknown is intentional — it's how "no signal"
-reads. Don't add one for consistency.
+- Discord CDN `?size=` accepts only powers of two 16–4096. `192` and `384`
+  return **HTTP 400**, which fires `onerror` and demotes the user to a default
+  avatar. `AVATAR_SIZE` is 256.
+- Avatar decoration: `?size=` is ignored on that route; the asset is a 222KB
+  animated APNG, so it is `loading="lazy"`.
+- Nameplate: use `asset.webm` (147KB) — **never `img.png`**, which is a 390KB
+  animated APNG. `static.png` is the 11KB still.
+- Both the decoration and the nameplate can carry `expires_at`; `unexpired()`
+  guards them.
+- Activity `assets.large_image` may be a `mp:external/…` proxy string → resolve
+  against `media.discordapp.net`. Arbitrary `http(s)` asset values are
+  deliberately **dropped**, not passed through, so a third-party RPC client
+  cannot point an `<img>` at any origin.
+- Activity **buttons are labels only** — Discord never exposes their URLs to
+  third parties. They render as chips, not links. Do not invent a destination.
+- Lanyard has no banner and no "About Me". The bio lines in the identity panel
+  are static content, not a live feed.
 
-### Status cards
+### Status cards — "My homelab"
 
-A `.glass` tile per service (20px radius): a header with the service name
-plus a small status dot, then a row of **exactly three** mono readouts —
-24h uptime, 30d uptime, latency — and an optional `.status-visit` link
-when `publicUrl` is set.
+Deliberately the **last** section and deliberately compact: one small glass tile
+per container, grouped by node, with a name, a status dot and three mono
+readouts (24h, 30d, ping).
 
-Tiles are grouped by node: `#status-groups` holds one `.status-group` per
-entry in `nodes`, each with a `.status-group-title` heading and its own
-`.status-grid`. Heading order is `h2` "My homelab" → `h3` node → `h4`
-service; keep it that way.
-
-Structural details that are load-bearing, not incidental:
-
-- `.status-grid` uses `minmax(198px, 1fr)` tracks. That number is derived,
-  not taste: the desktop content column is 632px (980 − 48 padding − 260
-  identity − 40 gap), so three tracks plus two 12px gaps must fit in 632 —
-  anything from ~205px up silently drops to **two** columns. If you change
-  the layout width, the identity column or the gap, recompute it.
-- `.status-readout` is a **3-column grid**, not flex-wrap. A fixed
-  three-track layout keeps every tile's numbers on the same baseline;
-  wrapping leaves them ragged between tiles.
-- `.status-card` is a flex column and `.status-visit` has `margin-top:
-  auto`, so the visit link anchors to the bottom and tiles with and
-  without one still line up.
-- The entrance stagger is capped at `min(index, 12)` so a long list
-  finishes appearing promptly instead of trickling in for seconds.
-
-The status dot uses the **same glow pattern as the presence dot**:
-`0 0 0 5px` at 0.16 alpha, green when up, red when down, and **no glow**
-when unknown.
-
-Don't add a fourth readout to that row — it's a fixed three. Freshness
-goes in the single `#status-meta` line below the grid, which reports the
-most recent `lastChecked` across all services (not `generatedAt`, which
-would always read "0s ago").
+Grid columns are **pinned per breakpoint, not `auto-fill`**: 2 columns on
+mobile, 3 from 600px, 3 on desktop. `auto-fill` packed 3 tracks at 500px and 5
+at 880px, which starved the readouts and made them collide. `minmax(0, 1fr)`
+keeps a long service name from forcing overflow.
 
 ### Motion
 
-Motion lives in one clearly marked `MOTION SYSTEM` block at the bottom of
-`style.css`. Only `transform`, `opacity` and `filter` are animated, so
-everything stays on the compositor.
-
-**The safety rule — read before adding any entrance animation.** An
-element's *base* CSS state is its *final* state, and the keyframe animates
-**from** the hidden state using `backwards` fill:
+All motion lives in transform/opacity. The safety rule: an element's **base**
+state is its **final** state, and keyframes animate *from* hidden using
+`backwards` fill:
 
 ```css
-.thing { animation: rise-in 0.8s var(--ease-out-expo) backwards; }
+.thing { animation: rise-in 0.85s var(--ease-out-expo) backwards; }
 @keyframes rise-in { from { opacity: 0; transform: translateY(18px); } }
 ```
 
-Never write `opacity: 0` into an element's base rule. If you do, the
-reduced-motion override (`animation: none`) strands it permanently
-invisible. Written the way above, killing animations leaves the page fully
-rendered. This is verifiable: force reduced motion and the page is complete
-immediately, with no stagger.
+Never put `opacity: 0` in a base rule — the reduced-motion override
+(`animation: none`) would strand it invisible forever. Verify by forcing
+reduced motion: the page must be *complete* immediately, with no stagger.
 
-What moves:
-
-- **Entrance** — identity card, section headings, link pills and status
-  tiles rise and fade in, staggered ~70ms apart. Link pills stagger via
-  `:nth-child`; status tiles are built by JS, which sets `--i` to the tile
-  index and CSS reads `calc(0.6s + var(--i) * 0.07s)`.
-- **Blooms** — the only *continuous* page animation: a slow translate +
-  gentle scale (`drift1` / `drift2`, 26–32s). Keep the scale amplitude
-  small (≤1.06) or they expand past their intended footprint and the
-  near-white base stops reading as the canvas.
-- **The wave** — draws itself in via `stroke-dashoffset` (the path carries
-  `pathLength="1"`, so the dash maths is resolution-independent), then
-  breathes slowly in opacity. Still exactly one wave.
-- **Pointer glow** — `.cursor-glow`, a soft teal radial that eases toward
-  the cursor (~0.12 lerp per frame) so it trails rather than snaps.
-  Desktop pointers only: CSS hides it under `(hover: none)` /
-  `(pointer: coarse)`, and `initCursorGlow()` bails on reduced motion.
-- **Link pills** — `translateY(-3px)`, teal border, and a diagonal sheen
-  sweeping across via `::before`, plus an arrow that nudges in on the
-  anchor's `::after`.
-- **Status tiles** — `translateY(-3px)` with a teal edge on hover. Still
-  **no drop shadows** — the lift is border + background, not shade.
-- **Live pulse** — an expanding ring on `up` / `online` dots only. It is
-  deliberately *not* applied to down/offline: firing it on every failing
-  service at once is noise, not signal.
-- **Number transitions** — `setReadout()` in `app.js` tweens a readout
-  from its previous value (ease-out cubic, 550ms) and flashes it teal via
-  `.is-changing`. It falls back to setting text directly on first render,
-  on null values, and under reduced motion.
+What moves: the blooms drift; the jellyfish rise, bob, pulse and sway; the wave
+draws itself in (via `stroke-dashoffset`, with `pathLength="1"` so the maths is
+resolution-independent) then breathes; link pills lift 3px with a teal sheen
+sweeping across and an arrow nudging in; status tiles lift 2px; the pointer glow
+eases toward the cursor at 0.12/frame; numeric readouts tween between values and
+flash teal.
 
 `@media (prefers-reduced-motion: reduce)` disables **all** animation and
-transition, including pseudo-elements, and hides the pointer glow. Keep
-that rule first-class — it is non-negotiable.
+transition including pseudo-elements, and hides the pointer glow. Non-negotiable.
 
----
 
 ## Configuring Discord presence
 
 Set `DISCORD_USER_ID` at the top of `public/app.js`. Presence comes from
-[Lanyard](https://api.lanyard.rest), which only reports for members of
-its own Discord — join <https://discord.gg/lanyard> once. No token
-needed. While the placeholder is unchanged the badge reads "presence not
-configured" and no request is made.
+[Lanyard](https://api.lanyard.rest), which only reports for members of its own
+Discord — the account must join <https://discord.gg/lanyard> once. No token
+needed, and the ID is public by necessity (the browser calls the API with it).
+
+**Transport.** `fetchPresence()` does one REST call on load so the card is
+populated on first paint, then `connectLanyard()` opens the WebSocket
+(`wss://api.lanyard.rest/socket`) for instant updates. Keep both: the socket
+alone leaves the card empty until the handshake completes, and REST alone lags
+up to 30s. On socket close it backs off exponentially and polls in the
+meantime; `gotSocketData` stops a late REST response clobbering fresher socket
+data.
+
+With `subscribe_to_id` (singular) the `INIT_STATE` payload **is** the presence
+object. With `subscribe_to_ids` (plural) it would be keyed by user id — an easy
+mistake to make when reading the Lanyard docs.
+
+What Lanyard does **not** provide: the profile banner and the "About Me" text.
+The bio lines in the identity panel are static content in `index.html`.
 
 ## Local dev
 
