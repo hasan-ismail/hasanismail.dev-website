@@ -394,9 +394,17 @@ store API's returned name, and each image URL checked for a 200 before being
 hardcoded. **Don't add a game by guessing its app id** — a wrong id silently
 renders someone else's box art.
 
-Two have no cover and use a lettered `.game-art--empty` tile instead: Pragmata
-(unreleased — its assets live under a hashed path with no portrait capsule) and
-Minecraft (not on Steam at all).
+All eight have real art. Two needed sources other than a Steam portrait capsule:
+
+- **Minecraft** is not on Steam. Its cover is the official **Microsoft Store**
+  poster, resolved through the public displaycatalog API
+  (`displaycatalog.mp.microsoft.com/v7.0/products?bigIds=9NBLGGH2JHXJ`), which
+  lists a 720x1080 `Poster` image — already the 2:3 the tile wants, and it
+  accepts `?w=&h=&q=` resizing.
+- **Pragmata** is on Steam but has no portrait capsule (unreleased; assets sit
+  under a hashed path). It uses the 460x215 `header.jpg`. A straight
+  `object-fit: cover` would throw away ~70% of the width, so `.game-art--wide`
+  letterboxes the real art over a blurred, zoomed copy of itself instead.
 
 Details worth not rediscovering:
 
@@ -486,7 +494,24 @@ only because JS gates them:
 If you add another, gate it the same way and verify by forcing reduced motion.
 
 `@media (prefers-reduced-motion: reduce)` disables **all** animation and
-transition including pseudo-elements, and hides the pointer glow. Non-negotiable.
+transition including pseudo-elements, and hides the pointer glow.
+
+**But an explicit visitor choice outranks the OS**, in both directions. The
+reduced-motion block is scoped to `html:not([data-motion="on"])`, and a
+separate `html[data-motion="off"]` block force-disables motion for someone
+whose OS does not ask for it. The `.motion-toggle` button writes `hi-motion`
+to localStorage and sets that attribute.
+
+This exists because the owner reported "animations do not work on desktop" —
+the cause was Windows 11 Settings -> Accessibility -> Visual effects ->
+Animation effects being off, which is exactly what the media query honours.
+Respecting the OS by default is still correct; the toggle just makes the
+choice reachable.
+
+`prefersReducedMotion()` in app.js reads the override first and is a
+**function, not a captured boolean**, so every motion-gated feature re-reads
+it. Opting back on triggers a reload, because features like the snow layer and
+the pointer glow bail out early at init and cannot be restarted in place.
 
 
 ## Configuring Discord presence

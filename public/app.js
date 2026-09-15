@@ -4,7 +4,17 @@
 // prefers-reduced-motion media query; this mirrors it for the JS-driven
 // pieces (pointer glow, number tweens, the animated nameplate).
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-const prefersReducedMotion = () => reducedMotion.matches;
+// Respects the in-page override first, then the OS preference. Defined as a
+// function, not a captured boolean, so the toggle takes effect without a
+// rebuild of every caller.
+const prefersReducedMotion = () => {
+  try {
+    const o = localStorage.getItem("hi-motion");
+    if (o === "on") return false;
+    if (o === "off") return true;
+  } catch {}
+  return reducedMotion.matches;
+};
 
 // ---- Discord presence (Lanyard) ----
 //
@@ -902,3 +912,53 @@ async function loadDiscordProfile() {
 }
 
 loadDiscordProfile();
+
+// ---- motion override ----
+//
+// The OS preference is the default, but an explicit click outranks it in both
+// directions: someone with reduce-motion enabled system-wide can still opt in
+// here, and someone without it can opt out. Stored per-browser.
+//
+// This is why prefersReducedMotion() is a function rather than a captured
+// boolean — every motion-gated feature re-reads it.
+
+const MOTION_KEY = "hi-motion";
+
+function motionOverride() {
+  try { return localStorage.getItem(MOTION_KEY); } catch { return null; }
+}
+
+function motionEnabled() {
+  const o = motionOverride();
+  if (o === "on") return true;
+  if (o === "off") return false;
+  return !reducedMotion.matches;
+}
+
+function applyMotion() {
+  const o = motionOverride();
+  const root = document.documentElement;
+  if (o === "on" || o === "off") root.dataset.motion = o;
+  else delete root.dataset.motion;
+
+  const btn = document.getElementById("motion-toggle");
+  const label = document.getElementById("motion-label");
+  if (btn) btn.setAttribute("aria-pressed", String(motionEnabled()));
+  if (label) label.textContent = motionEnabled() ? "Animations on" : "Animations off";
+}
+
+function initMotionToggle() {
+  const btn = document.getElementById("motion-toggle");
+  if (!btn) return;
+  applyMotion();
+  btn.addEventListener("click", () => {
+    const next = motionEnabled() ? "off" : "on";
+    try { localStorage.setItem(MOTION_KEY, next); } catch {}
+    applyMotion();
+    // Features that bail out early when motion is off need starting once it
+    // comes back on; a reload is the honest way to re-run all of them.
+    if (next === "on") location.reload();
+  });
+}
+
+initMotionToggle();

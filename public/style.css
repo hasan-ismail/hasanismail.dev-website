@@ -98,14 +98,30 @@ h1, h2, h3, h4 { font-family: 'Outfit', system-ui, sans-serif; font-weight: 600;
 /* Entrance keyframes animate FROM hidden with `backwards` fill, so disabling
    animation leaves everything in its visible base state. Never put opacity:0
    in a base rule. */
+/* Motion is OFF when the OS asks for reduced motion, UNLESS the visitor has
+   explicitly opted back in via the in-page toggle (html[data-motion="on"]).
+   An explicit user choice outranks the OS default in both directions —
+   data-motion="off" also force-disables motion for someone whose OS does not
+   ask for it. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  html:not([data-motion="on"]) *,
+  html:not([data-motion="on"]) *::before,
+  html:not([data-motion="on"]) *::after {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
   }
-  .cursor-glow { display: none !important; }
+  html:not([data-motion="on"]) .cursor-glow { display: none !important; }
 }
+
+html[data-motion="off"] *,
+html[data-motion="off"] *::before,
+html[data-motion="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+html[data-motion="off"] .cursor-glow { display: none !important; }
 
 /* ==========================================================================
    BACKDROP
@@ -1655,3 +1671,54 @@ body {
 .game:nth-child(3n+1):hover .game-art { border-color: var(--teal); }
 .game:nth-child(3n+2):hover .game-art { border-color: var(--violet); }
 .game:nth-child(3n):hover   .game-art { border-color: var(--pink); }
+
+/* A landscape source in a portrait tile: letterbox the real art over a blurred,
+   zoomed copy of itself rather than cropping away 70% of the image.
+   Pragmata is unreleased and Steam has no portrait capsule for it. */
+.game-art--wide {
+  background-image: var(--art);
+  background-size: cover;
+  background-position: center;
+}
+.game-art--wide::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  background: rgba(6, 15, 26, 0.35);
+}
+.game-art--wide img {
+  position: relative;
+  height: auto;
+  object-fit: contain;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Motion toggle control */
+.motion-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border-strong);
+  color: var(--ink-muted);
+  font-size: 0.74rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.16s ease, color 0.16s ease;
+}
+.motion-toggle:hover { border-color: var(--border-accent); color: var(--ink); }
+.motion-toggle .mt-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--unknown);
+}
+.motion-toggle[aria-pressed="true"] .mt-dot {
+  background: var(--up);
+  box-shadow: 0 0 0 4px var(--ring-up);
+}
