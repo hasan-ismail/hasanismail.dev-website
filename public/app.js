@@ -572,12 +572,18 @@ function buildTile(svc, index) {
   }
   row.appendChild(meta);
 
+  // The visit slot is ALWAYS present, even when empty. Appending the link only
+  // on rows that have one took width out of the flex row and shunted that row's
+  // stat columns left, so a single linked service broke alignment for the
+  // whole list.
+  const visitSlot = el("span", "svc-visit-slot");
   if (svc.publicUrl) {
     const link = el("a", "svc-visit", "visit");
     link.href = svc.publicUrl;
     link.rel = "noopener";
-    row.appendChild(link);
+    visitSlot.appendChild(link);
   }
+  row.appendChild(visitSlot);
 
   return { card: row, readouts, sr };
 }
@@ -728,12 +734,18 @@ async function loadContributions() {
     const loc = document.getElementById("gh-loc");
     // Only render a COMPLETE count — a partial sum reads as authoritative and
     // would be wrong by two orders of magnitude.
-    if (loc && data.linesAdded && data.linesAdded.skipped === 0 && data.linesAdded.added > 0) {
+    // Render when the server says the figure is publishable — i.e. nothing was
+    // still being computed. Repos that are permanently unavailable contribute
+    // zero and are reported in the tooltip rather than hiding the whole figure.
+    if (loc && data.linesAdded && data.linesAdded.publishable && data.linesAdded.added > 0) {
       const n = data.linesAdded.added;
       loc.textContent = "· " + n.toLocaleString() + " lines added";
       loc.title =
         n.toLocaleString() + " added, " + data.linesAdded.removed.toLocaleString() +
-        " removed across " + data.linesAdded.repos + " public repos in the last year";
+        " removed across " + data.linesAdded.repos + " public repos in the last year" +
+        (data.linesAdded.coverage < 1
+          ? " (" + Math.round(data.linesAdded.coverage * 100) + "% of repos resolved)"
+          : "");
       loc.hidden = false;
     }
   } catch {

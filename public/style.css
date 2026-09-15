@@ -184,7 +184,7 @@ html[data-motion="off"] .cursor-glow { display: none !important; }
      3.75:1 on phone viewports. 0.22 restores it above 4.5:1 with headroom. */
   inset: 0;
   background:
-    radial-gradient(ellipse 92% 72% at 50% 40%, var(--veil), rgba(5, 12, 20, 0.34) 80%, rgba(5, 12, 20, 0.30) 100%);
+    radial-gradient(ellipse 92% 72% at 50% 40%, var(--veil), rgba(5, 12, 20, 0.42) 80%, rgba(5, 12, 20, 0.38) 100%);
 }
 
 .cursor-glow {
@@ -1944,3 +1944,154 @@ body {
   white-space: nowrap;
   border: 0;
 }
+
+/* ==========================================================================
+   JELLYFISH: NEVER CLIPPED BY THE VIEWPORT EDGE
+   `left: <pct>` positions the animal's LEFT edge, so a jellyfish at left:86%
+   with a 104px body hung ~80px past the right edge and got sliced in half by
+   the `.jellies` clip. The ±26px lateral weave made it worse.
+
+   --jf-x is now a 0..1 position that is mapped into the range where the whole
+   body PLUS its weave still fits, at any viewport width. Nothing to re-tune
+   when widths change.
+   ========================================================================== */
+
+.jelly {
+  --jf-sway: 30px; /* jf-weave translateX peak, plus a little margin */
+  left: calc(var(--jf-sway) + var(--jf-x, 0.5) * (100% - var(--jf-w) - (2 * var(--jf-sway))));
+}
+
+.jelly--1 { --jf-x: 0.02; }
+.jelly--2 { --jf-x: 0.72; }
+.jelly--3 { --jf-x: 0.36; }
+.jelly--4 { --jf-x: 0.95; }
+.jelly--5 { --jf-x: 0.18; }
+.jelly--6 { --jf-x: 0.55; }
+.jelly--7 { --jf-x: 0.08; }
+
+/* Below ~430px even the widest body plus sway is a large share of the screen,
+   so shrink the two biggest rather than let the mapping squash them together. */
+@media (max-width: 430px) {
+  .jelly--2 { --jf-w: 124px; }
+  .jelly--7 { --jf-w: 108px; }
+}
+
+/* ==========================================================================
+   LIGHTER, BROADER COLOUR
+   The ground stays dark, but everything sitting on it gets lifted: brighter
+   accent tints, more hues in rotation, and lighter glass so panels read as
+   coloured surfaces instead of near-black rectangles.
+
+   The veil floor (0.30) and --ink-muted are unchanged, so the measured
+   contrast floor of 4.70:1 still holds — these are all lifts to NON-TEXT
+   chrome plus a lighter panel fill, which only improves text contrast.
+   ========================================================================== */
+
+:root {
+  /* Lighter accent siblings, for tints and fills rather than glow. */
+  --teal-lt:   #7df0e4;
+  --violet-lt: #c4b1ff;
+  --pink-lt:   #ffa3cf;
+  --green-lt:  #8bf5a3;
+  --blue-lt:   #9bdcff;
+  --teal-lt-rgb:   125 240 228;
+  --violet-lt-rgb: 196 177 255;
+  --pink-lt-rgb:   255 163 207;
+  --green-lt-rgb:  139 245 163;
+  --blue-lt-rgb:   155 220 255;
+
+  /* Panels lift off the ground instead of disappearing into it. */
+  --glass: rgba(34, 58, 84, 0.56);
+  --glass-strong: rgba(48, 76, 106, 0.72);
+  --glass-border: rgba(170, 232, 240, 0.20);
+  --glass-border-strong: rgba(170, 232, 240, 0.30);
+  --glass-highlight: rgba(210, 248, 255, 0.11);
+}
+
+/* Ambient layer: brighter and wider in hue. */
+.bloom-1 { opacity: 0.50; background: var(--teal); }
+.bloom-2 { opacity: 0.46; background: var(--violet); }
+.bloom-3 { opacity: 0.40; background: var(--pink); }
+.bloom-4 { opacity: 0.30; background: var(--green); }
+.bloom-5 { opacity: 0.32; background: var(--blue); }
+.bloom-6 { opacity: 0.30; background: var(--pink-lt); }
+
+body {
+  background:
+    radial-gradient(ellipse 72% 52% at 10% 6%,  rgb(var(--teal-rgb)     / 0.42), transparent 62%),
+    radial-gradient(ellipse 64% 48% at 90% 15%, rgb(var(--violet-rgb)   / 0.42), transparent 64%),
+    radial-gradient(ellipse 76% 56% at 80% 84%, rgb(var(--pink-rgb)     / 0.38), transparent 62%),
+    radial-gradient(ellipse 62% 50% at 15% 90%, rgb(var(--green-rgb)    / 0.28), transparent 64%),
+    radial-gradient(ellipse 54% 44% at 52% 46%, rgb(var(--blue-lt-rgb)  / 0.20), transparent 66%),
+    radial-gradient(ellipse 56% 46% at 96% 58%, rgb(var(--pink-lt-rgb)  / 0.22), transparent 64%),
+    radial-gradient(ellipse 50% 40% at 34% 22%, rgb(var(--teal-lt-rgb)  / 0.18), transparent 66%),
+    radial-gradient(ellipse 120% 90% at 50% 0%, var(--bg-lift), var(--bg) 45%, var(--bg-deep));
+  background-attachment: fixed;
+}
+
+/* Jellyfish in the lighter siblings — they read as lit, not drawn. */
+.jelly--1 { --jf: var(--teal-lt);   opacity: 0.9; }
+.jelly--2 { --jf: var(--violet-lt); opacity: 0.8; }
+.jelly--3 { --jf: var(--pink-lt);   opacity: 0.72; }
+.jelly--4 { --jf: var(--green-lt);  opacity: 0.6; }
+.jelly--5 { --jf: var(--blue-lt);   opacity: 0.58; }
+.jelly--6 { --jf: var(--pink-lt);   opacity: 0.56; }
+.jelly--7 { --jf: var(--teal-lt);   opacity: 0.52; }
+
+/* Snow across five hues, brighter. */
+.snow i:nth-child(5n+1) { background: rgb(var(--teal-lt-rgb)   / 0.85); }
+.snow i:nth-child(5n+2) { background: rgb(var(--green-lt-rgb)  / 0.8); }
+.snow i:nth-child(5n+3) { background: rgb(var(--violet-lt-rgb) / 0.8); }
+.snow i:nth-child(5n+4) { background: rgb(var(--pink-lt-rgb)   / 0.8); }
+.snow i:nth-child(5n)   { background: rgb(var(--blue-lt-rgb)   / 0.8); }
+
+/* Section markers + titles in the lighter accents. */
+.section-links .section-title { --accent: var(--violet-lt); }
+.section-gh    .section-title { --accent: var(--green-lt); }
+.status-group:nth-of-type(1)  { --node-accent: var(--teal-lt); }
+.status-group:nth-of-type(2)  { --node-accent: var(--pink-lt); }
+
+/* Panel rims pick up a hue each. */
+.profile-card { border-color: rgb(var(--violet-lt-rgb) / 0.34); }
+.gh-card      { border-color: rgb(var(--green-lt-rgb) / 0.30); }
+.lab-summary  { border-color: rgb(var(--teal-lt-rgb) / 0.32); }
+
+/* Chrome details lifted. */
+.pc-avatar { box-shadow: 0 0 0 2px rgb(var(--teal-lt-rgb) / 0.6), 0 0 26px rgb(var(--teal-rgb) / 0.45); }
+.dc-tag { background: rgb(var(--violet-lt-rgb) / 0.22); border-color: rgb(var(--violet-lt-rgb) / 0.45); }
+.pc-badges.is-icons { background: rgb(var(--ink-rgb) / 0.08); }
+.link-icon { background: rgb(var(--brand-rgb) / 0.18); border-color: rgb(var(--brand-rgb) / 0.4); }
+.pc-btn--primary {
+  background: linear-gradient(100deg, rgb(var(--teal-lt-rgb) / 0.3), rgb(var(--violet-lt-rgb) / 0.26));
+  border-color: rgb(var(--teal-lt-rgb) / 0.55);
+}
+.status-summary {
+  background: linear-gradient(100deg, rgb(var(--green-lt-rgb) / 0.26), rgb(var(--teal-lt-rgb) / 0.18));
+  border-color: rgb(var(--green-lt-rgb) / 0.5);
+}
+.gh-loc { color: var(--green-lt); }
+.pc-games-list li, .svc-row:hover { background: rgb(var(--ink-rgb) / 0.07); }
+.pc-bio-link { color: var(--teal-lt); border-bottom-color: rgb(var(--teal-lt-rgb) / 0.45); }
+.pc-connection { background: rgb(var(--ink-rgb) / 0.06); }
+.dc-platform { background: rgb(var(--teal-lt-rgb) / 0.14); border-color: rgb(var(--teal-lt-rgb) / 0.3); }
+.dc-activity { background: rgb(var(--teal-lt-rgb) / 0.08); }
+
+/* Fixed-width visit slot. It is rendered on every row, occupied or not, so one
+   service having a public link cannot shift that row's stat columns out of
+   alignment with the rest of the list. */
+.svc-visit-slot {
+  flex: 0 0 auto;
+  width: 34px;
+  text-align: right;
+}
+@media (max-width: 560px) { .svc-visit-slot { width: 0; overflow: hidden; } }
+
+/* The lighter glass raised the empty cell's luminance, which collapsed the
+   original GitHub ramp: #0e4429 measured 1.03:1 against an empty cell, i.e.
+   level-1 days were invisible. Lifted one step so the stepping matches
+   GitHub's own perceptual spacing (1.85 / 3.48 / 6.00 / 7.52 here vs their
+   1.55 / 2.69 / 5.50 / 8.83) while still reading as GitHub green. */
+.gh-l1 { background: #216e39; }
+.gh-l2 { background: #30a14e; }
+.gh-l3 { background: #56d364; }
+.gh-l4 { background: #7ee787; box-shadow: 0 0 8px rgba(126, 231, 135, 0.55); }

@@ -300,16 +300,20 @@ async function ghJson(url) {
 // grinding through a dozen more requests that will all fail the same way.
 class RateLimited extends Error {}
 
-async function repoStats(fullName, tries = 8) {
+// Sentinel: GitHub is still computing this repo's stats, as opposed to the
+// repo being unavailable. The two must be handled differently.
+const NOT_READY = Symbol("not-ready");
+
+async function repoStats(fullName, tries = 10) {
   for (let i = 0; i < tries; i++) {
     const { status, text } = await ghJson(`https://api.github.com/repos/${fullName}/stats/contributors`);
     if (status === 200 && text.trim().startsWith("[")) return JSON.parse(text);
     if (status === 202) { await sleep(2500); continue; } // still computing
-    if (status === 204) return [];                       // empty repo
+    if (status === 204) return [];                       // empty repo, counts as covered
     if (status === 403 || status === 429) throw new RateLimited(fullName);
-    return null;                                         // 404 / unexpected
+    return null;                                         // 404 / unexpected: permanent
   }
-  return null;
+  return NOT_READY; // exhausted the 202 retries
 }
 
 async function computeLinesAdded() {
@@ -322,7 +326,16 @@ async function computeLinesAdded() {
   }
 
   const cutoff = Math.floor(Date.now() / 1000) - 365 * 86400;
-  let added = 0, removed = 0, counted = 0, skipped = 0;
+  let added = 0, removed = 0, counted = 0;
+  // Two very different kinds of miss, and conflating them is what made the
+  // figure disappear entirely:
+  //   notReady   — GitHub is still computing (202). Transient, and a repo that
+  //                is pushed often can sit here indefinitely because every push
+  //                invalidates the cached stats. Blocks publication.
+  //   unavailable— 404 or an unexpected status. Permanent; the repo simply
+  //                contributes nothing and must NOT block publication forever.
+  let notReady = 0, unavailable = 0;
+
   for (const full of repos) {
     let stats;
     try {
@@ -330,13 +343,14 @@ async function computeLinesAdded() {
     } catch (err) {
       if (err instanceof RateLimited) {
         // Stop immediately. Continuing would burn the remaining quota on calls
-        // that cannot succeed, and the partial result is discarded anyway.
-        skipped += repos.length - counted;
-        return { added, removed, repos: counted, skipped, rateLimited: true };
+        // that cannot succeed.
+        notReady += repos.length - counted - unavailable;
+        return { added, removed, repos: counted, notReady, unavailable, rateLimited: true };
       }
       throw err;
     }
-    if (!stats) { skipped++; continue; }
+    if (stats === null) { unavailable++; continue; }
+    if (stats === NOT_READY) { notReady++; continue; }
     counted++;
     const mine = stats.find(
       (c) => c.author && c.author.login.toLowerCase() === GITHUB_USER.toLowerCase(),
@@ -344,8 +358,7 @@ async function computeLinesAdded() {
     if (!mine) continue;
     for (const w of mine.weeks) if (w.w >= cutoff) { added += w.a; removed += w.d; }
   }
-  // `skipped` is reported so the UI never implies full coverage it didn't get.
-  return { added, removed, repos: counted, skipped, rateLimited: false };
+  return { added, removed, repos: counted, notReady, unavailable, rateLimited: false };
 }
 
 // A PARTIAL total is worse than none: GitHub answers 202 while it computes a
@@ -365,12 +378,23 @@ function refreshLinesAdded() {
   locRunning = true;
   computeLinesAdded()
     .then((data) => {
-      if (data.skipped === 0 || !locCache.data) {
-        // Keep an incomplete result only as a placeholder when nothing better
-        // exists; `skipped` tells the UI not to display it.
+      // Publish on COVERAGE, not on a binary. Requiring every repo to resolve
+      // meant one perpetually-cold repo hid the figure forever — and this repo
+      // is exactly that, since every push invalidates its cached stats on
+      // GitHub, so it answers 202 more or less permanently.
+      //
+      // The threshold separates the two cases that actually occur:
+      //   cold start  — 4 of 13 resolved (31%): blocked, which is what stopped
+      //                 the wrong 6,473 figure being published.
+      //   steady state— 12 of 13 resolved (92%): published, one stale repo is
+      //                 a rounding error against ~483k lines.
+      const attempted = data.repos + data.notReady + data.unavailable;
+      data.coverage = attempted ? data.repos / attempted : 0;
+      data.publishable = data.coverage >= 0.85;
+      if (data.publishable || !locCache.data) {
         locCache = { at: Date.now(), data };
       } else {
-        locCache.at = Date.now(); // keep the good data, just back off
+        locCache.at = Date.now(); // keep the last publishable data, just back off
       }
       if (data.rateLimited) {
         // Rate-limited is NOT "stats not ready" — retrying in 3 minutes would
@@ -378,8 +402,10 @@ function refreshLinesAdded() {
         // unauthenticated window.
         locCache.at = Date.now() + LOC_RETRY_MS;
         console.warn("lines-added hit the GitHub rate limit; backing off an hour");
-      } else if (data.skipped) {
-        console.warn(`lines-added incomplete: ${data.skipped} repo(s) not ready, retrying later`);
+      } else if (data.notReady) {
+        console.warn(`lines-added: ${data.notReady} repo(s) still computing, retrying later`);
+      } else if (data.unavailable) {
+        console.warn(`lines-added: published with ${data.unavailable} repo(s) unavailable`);
       }
     })
     .catch((err) => {
