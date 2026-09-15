@@ -249,17 +249,115 @@ async function fetchContributions() {
   }
 }
 
+// ---------- lines added, across public non-fork repos ----------
+//
+// GitHub has no "lines of code" endpoint. This sums per-week additions from
+// /stats/contributors for every non-fork repo the user owns or co-owns via an
+// org, keeping only their own commits and only the last 365 days.
+//
+// Two things make it slow and therefore heavily cached:
+//   * it is one request per repo, and
+//   * GitHub computes those stats on demand and answers 202 until ready, so a
+//     cold repo needs polling.
+// It refreshes in the background so /api/github never blocks on it.
+
+const GITHUB_ORGS = config.githubOrgs || ["OpenMasjid-Solutions"];
+const LOC_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+let locCache = { at: 0, data: null };
+let locRunning = false;
+
+const ghHeaders = { "User-Agent": "hasanismail.dev", Accept: "application/vnd.github+json" };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function ghJson(url) {
+  const res = await fetch(url, { headers: ghHeaders });
+  const text = res.status === 204 ? "" : await res.text();
+  return { status: res.status, text };
+}
+
+async function repoStats(fullName, tries = 8) {
+  for (let i = 0; i < tries; i++) {
+    const { status, text } = await ghJson(`https://api.github.com/repos/${fullName}/stats/contributors`);
+    if (status === 200 && text.trim().startsWith("[")) return JSON.parse(text);
+    if (status === 202) { await sleep(2500); continue; } // still computing
+    if (status === 204) return [];                       // empty repo
+    return null;                                         // 403 / 404 / rate limited
+  }
+  return null;
+}
+
+async function computeLinesAdded() {
+  const owners = [{ name: GITHUB_USER, kind: "users" }, ...GITHUB_ORGS.map((o) => ({ name: o, kind: "orgs" }))];
+  const repos = [];
+  for (const o of owners) {
+    const { status, text } = await ghJson(`https://api.github.com/${o.kind}/${o.name}/repos?per_page=100`);
+    if (status !== 200) continue;
+    for (const r of JSON.parse(text)) if (!r.fork) repos.push(r.full_name);
+  }
+
+  const cutoff = Math.floor(Date.now() / 1000) - 365 * 86400;
+  let added = 0, removed = 0, counted = 0, skipped = 0;
+  for (const full of repos) {
+    const stats = await repoStats(full);
+    if (!stats) { skipped++; continue; }
+    counted++;
+    const mine = stats.find(
+      (c) => c.author && c.author.login.toLowerCase() === GITHUB_USER.toLowerCase(),
+    );
+    if (!mine) continue;
+    for (const w of mine.weeks) if (w.w >= cutoff) { added += w.a; removed += w.d; }
+  }
+  // `skipped` is reported so the UI never implies full coverage it didn't get.
+  return { added, removed, repos: counted, skipped };
+}
+
+// A PARTIAL total is worse than none: GitHub answers 202 while it computes a
+// cold repo's stats, and counting only the repos that happened to be warm
+// produced 6,473 instead of the real 483,277. So an incomplete run is never
+// cached as the answer — it is retried shortly, and a previously complete
+// result keeps being served in the meantime.
+const LOC_RETRY_MS = 3 * 60 * 1000;
+
+function refreshLinesAdded() {
+  if (locRunning) return;
+  const age = Date.now() - locCache.at;
+  const complete = locCache.data && locCache.data.skipped === 0;
+  if (complete && age < LOC_TTL_MS) return;
+  if (!complete && age < LOC_RETRY_MS) return;
+
+  locRunning = true;
+  computeLinesAdded()
+    .then((data) => {
+      if (data.skipped === 0 || !locCache.data) {
+        // Keep an incomplete result only as a placeholder when nothing better
+        // exists; `skipped` tells the UI not to display it.
+        locCache = { at: Date.now(), data };
+      } else {
+        locCache.at = Date.now(); // keep the good data, just back off
+      }
+      if (data.skipped) {
+        console.warn(`lines-added incomplete: ${data.skipped} repo(s) not ready, retrying later`);
+      }
+    })
+    .catch((err) => console.error("lines-added computation failed:", err.message))
+    .finally(() => { locRunning = false; });
+}
+
 app.get("/api/github", async (req, res) => {
+  refreshLinesAdded(); // background; never blocks this response
+
   const fresh = Date.now() - githubCache.at < GITHUB_TTL_MS;
-  if (fresh && githubCache.data) return res.json(githubCache.data);
+  const withLoc = (d) => ({ ...d, linesAdded: locCache.data || null });
+
+  if (fresh && githubCache.data) return res.json(withLoc(githubCache.data));
   try {
     const data = await fetchContributions();
     githubCache = { at: Date.now(), data };
-    res.json(data);
+    res.json(withLoc(data));
   } catch (err) {
     console.error("github contributions fetch failed:", err.message);
     // Serve stale rather than nothing — a year of history doesn't go bad fast.
-    if (githubCache.data) return res.json(githubCache.data);
+    if (githubCache.data) return res.json(withLoc(githubCache.data));
     res.status(503).json({ error: "contributions unavailable" });
   }
 });

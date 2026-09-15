@@ -7,13 +7,14 @@ const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 // Respects the in-page override first, then the OS preference. Defined as a
 // function, not a captured boolean, so the toggle takes effect without a
 // rebuild of every caller.
+// Animations are ON by default, including when the OS asks for reduced motion
+// — the owner chose that for this site. Anyone can still turn them off with
+// the in-page toggle, and that choice persists.
 const prefersReducedMotion = () => {
   try {
-    const o = localStorage.getItem("hi-motion");
-    if (o === "on") return false;
-    if (o === "off") return true;
+    if (localStorage.getItem("hi-motion") === "off") return true;
   } catch {}
-  return reducedMotion.matches;
+  return false;
 };
 
 // ---- Discord presence (Lanyard) ----
@@ -538,36 +539,35 @@ const tiles = new Map();
 const groups = new Map();
 
 function buildTile(svc, index) {
-  const card = el("article", "status-card glass status-" + svc.status);
-  // Stagger, capped so a long list finishes appearing promptly.
-  card.style.setProperty("--i", String(Math.min(index, 12)));
+  const row = el("div", "svc-row status-" + svc.status);
+  row.style.setProperty("--i", String(Math.min(index, 14)));
 
-  const head = el("div", "status-card-head");
-  head.appendChild(el("span", "status-dot"));
-  head.appendChild(el("h4", null, svc.name));
-  card.appendChild(head);
+  const dot = el("span", "status-dot");
+  row.appendChild(dot);
 
-  const dl = el("dl", "status-readout");
+  const name = el("span", "svc-name", svc.name);
+  row.appendChild(name);
+
   const readouts = {};
-  const FIELDS = [["uptime24h", "24h"], ["uptime30d", "30d"], ["latencyMs", "ping"]];
-  for (const pair of FIELDS) {
-    const group = el("div");
-    group.appendChild(el("dt", null, pair[1]));
-    const dd = el("dd");
-    group.appendChild(dd);
-    dl.appendChild(group);
-    readouts[pair[0]] = dd;
+  const meta = el("span", "svc-meta");
+  for (const [key, label] of [["uptime24h", "24h"], ["uptime30d", "30d"], ["latencyMs", "ping"]]) {
+    const cell = el("span", "svc-stat");
+    cell.appendChild(el("span", "svc-stat-label", label));
+    const val = el("span", "svc-stat-value");
+    cell.appendChild(val);
+    meta.appendChild(cell);
+    readouts[key] = val;
   }
-  card.appendChild(dl);
+  row.appendChild(meta);
 
   if (svc.publicUrl) {
-    const link = el("a", "status-visit", "visit");
+    const link = el("a", "svc-visit", "visit");
     link.href = svc.publicUrl;
     link.rel = "noopener";
-    card.appendChild(link);
+    row.appendChild(link);
   }
 
-  return { card, readouts };
+  return { card: row, readouts };
 }
 
 function gridForNode(nodeId, nodes) {
@@ -579,7 +579,7 @@ function gridForNode(nodeId, nodes) {
   const meta = nodes.find((n) => n.id === nodeId);
   if (meta) wrap.appendChild(el("h3", "status-group-title", meta.label));
 
-  const grid = el("div", "status-grid");
+  const grid = el("div", "svc-list");
   wrap.appendChild(grid);
   container.appendChild(wrap);
 
@@ -598,7 +598,7 @@ function renderStatus(services, nodes) {
       tiles.set(svc.id, tile);
       gridForNode(svc.node, nodes).appendChild(tile.card);
     }
-    tile.card.className = "status-card glass status-" + svc.status;
+    tile.card.className = "svc-row status-" + svc.status;
     setReadout(tile.readouts.uptime24h, svc.uptime24h, formatUptime);
     setReadout(tile.readouts.uptime30d, svc.uptime30d, formatUptime);
     setReadout(tile.readouts.latencyMs, svc.latencyMs, formatLatency);
@@ -614,8 +614,13 @@ function renderStatus(services, nodes) {
   }
 
   const up = services.filter((s) => s.status === "up").length;
+  const total = services.length;
   const summary = document.getElementById("status-summary");
-  summary.textContent = up + "/" + services.length + " services up";
+  const allUp = up === total && total > 0;
+  summary.textContent = allUp
+    ? "All services online and operational"
+    : up + " of " + total + " services online";
+  summary.classList.toggle("is-degraded", !allUp);
   summary.hidden = false;
 }
 
@@ -703,6 +708,21 @@ async function loadContributions() {
 
     const legend = document.getElementById("gh-legend");
     if (legend) legend.hidden = false;
+
+    // Lines added. Deliberately labelled "added", not "written" — it is the
+    // sum of per-week additions across public non-fork repos, so it includes
+    // things like lockfiles and excludes private work entirely.
+    const loc = document.getElementById("gh-loc");
+    // Only render a COMPLETE count — a partial sum reads as authoritative and
+    // would be wrong by two orders of magnitude.
+    if (loc && data.linesAdded && data.linesAdded.skipped === 0 && data.linesAdded.added > 0) {
+      const n = data.linesAdded.added;
+      loc.textContent = "· " + n.toLocaleString() + " lines added";
+      loc.title =
+        n.toLocaleString() + " added, " + data.linesAdded.removed.toLocaleString() +
+        " removed across " + data.linesAdded.repos + " public repos in the last year";
+      loc.hidden = false;
+    }
   } catch {
     if (loading) loading.textContent = "Couldn't load contributions.";
   }
@@ -929,17 +949,13 @@ function motionOverride() {
 }
 
 function motionEnabled() {
-  const o = motionOverride();
-  if (o === "on") return true;
-  if (o === "off") return false;
-  return !reducedMotion.matches;
+  return motionOverride() !== "off";
 }
 
 function applyMotion() {
-  const o = motionOverride();
-  const root = document.documentElement;
-  if (o === "on" || o === "off") root.dataset.motion = o;
-  else delete root.dataset.motion;
+  // Always stamp the attribute: "on" is the default, so the CSS override has
+  // to be present even when the visitor has never touched the toggle.
+  document.documentElement.dataset.motion = motionEnabled() ? "on" : "off";
 
   const btn = document.getElementById("motion-toggle");
   const label = document.getElementById("motion-label");

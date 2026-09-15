@@ -63,6 +63,23 @@ targets. They exist so the page doesn't hit a third-party API once per
 visitor and so a brief upstream outage degrades to stale data rather than
 an empty card.
 
+`/api/github` also returns `linesAdded: { added, removed, repos, skipped }`.
+GitHub has no lines-of-code endpoint, so a background job sums per-week
+additions from `/stats/contributors` across every non-fork repo the user owns
+or co-owns via `config.githubOrgs`, keeping only their own commits and only
+the last 365 days.
+
+**A partial result must never be published.** GitHub answers `202` while it
+computes a cold repo's stats, and counting only the warm ones produced
+**6,473** instead of the real **483,277** — wrong by two orders of magnitude.
+So an incomplete run is not cached as the answer: it retries after 3 minutes
+instead of the usual 6 hours, a previously complete result keeps being served
+meanwhile, and the UI refuses to render any total with `skipped > 0`. Keep all
+three guards.
+
+The figure is labelled "lines added", not "lines written" — it is additions
+across public repos, so it includes lockfiles and excludes private work.
+
 `/api/github` returns `{ user, total, days: [{ date, count, level }] }` —
 all already-public GitHub data, no addresses. It exists as a server-side
 proxy for two reasons: it caches upstream for an hour so the page doesn't
@@ -430,12 +447,18 @@ Details worth not rediscovering:
 
 **Collapsed behind a `<details class="lab">`, closed by default.** Twenty-six
 tiles dominated the page; the owner asked for it tucked away. The live
-`#status-summary` pill ("26/26 services up") sits on the *closed* summary row,
+`#status-summary` pill ("All services online and operational") sits on the *closed* summary row,
 so status stays glanceable without expanding — keep it there if you restyle
 this, that pill is the whole point of hiding the rest.
 
-Inside: one small glass tile per container, grouped by node, with a name, a
-status dot and three mono readouts (24h, 30d, ping).
+Inside: a **list** (`.svc-list` / `.svc-row`), not a tile grid — rows read
+faster for 26 services. Each row is a status dot, the service name, then three
+mono stats right-aligned (24h, 30d, ping) and an optional visit link. Below
+560px the 30d column is hidden rather than letting all three collide.
+
+The summary pill reads "All services online and operational" when everything
+is up, and "N of M services online" with a red-tinted `.is-degraded` variant
+otherwise.
 
 Grid columns are **pinned per breakpoint, not `auto-fill`**: 2 columns on
 mobile, 3 from 600px, 3 on desktop. `auto-fill` packed 3 tracks at 500px and 5
@@ -496,7 +519,17 @@ If you add another, gate it the same way and verify by forcing reduced motion.
 `@media (prefers-reduced-motion: reduce)` disables **all** animation and
 transition including pseudo-elements, and hides the pointer glow.
 
-**But an explicit visitor choice outranks the OS**, in both directions. The
+**Animations are ON by default, including when the OS requests reduced
+motion** — the owner chose that for this site. `prefersReducedMotion()`
+returns true only when the visitor has explicitly stored `hi-motion=off`. A
+small inline script in the document head stamps `data-motion` before first
+paint so there is no reduced-motion flash.
+
+This is a deliberate accessibility trade-off, not an oversight: a visitor who
+set reduce-motion at OS level will still get animation. The in-page toggle is
+the mitigation, so keep it visible, labelled and keyboard reachable.
+
+**An explicit visitor choice outranks the OS**, in both directions. The
 reduced-motion block is scoped to `html:not([data-motion="on"])`, and a
 separate `html[data-motion="off"]` block force-disables motion for someone
 whose OS does not ask for it. The `.motion-toggle` button writes `hi-motion`

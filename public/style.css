@@ -1722,3 +1722,144 @@ body {
   background: var(--up);
   box-shadow: 0 0 0 4px var(--ring-up);
 }
+
+/* ==========================================================================
+   HOMELAB AS A LIST
+   Replaces the tile grid. Rows read faster for 26 services and let the name
+   breathe; the three mono stats sit right-aligned on one line.
+   ========================================================================== */
+
+.svc-list { display: flex; flex-direction: column; gap: 2px; }
+
+.svc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  animation: rise-in-sm 0.3s var(--ease-out-expo) backwards;
+  animation-delay: calc(0.12s + var(--i, 0) * 0.018s);
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.svc-row:hover {
+  background: rgb(var(--ink-rgb) / 0.05);
+  border-color: rgb(var(--teal-rgb) / 0.3);
+}
+.svc-row + .svc-row { border-top: 1px solid rgb(var(--ink-rgb) / 0.05); }
+
+.svc-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.svc-meta { display: flex; gap: 14px; flex-shrink: 0; }
+.svc-stat { display: flex; align-items: baseline; gap: 5px; }
+.svc-stat-label { font-size: 0.6rem; color: var(--ink-muted); letter-spacing: 0.05em; }
+.svc-stat-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  min-width: 48px;
+  text-align: right;
+  transition: color 0.22s ease;
+}
+.svc-stat-value.is-changing { color: var(--teal); }
+
+.svc-visit {
+  font-size: 0.7rem;
+  color: var(--ink-muted);
+  flex-shrink: 0;
+  transition: color 0.16s ease;
+}
+.svc-visit:hover { color: var(--teal); }
+
+/* Status colour lives on the dot; rows stay quiet. */
+.svc-row.status-up   .status-dot { background: var(--up);   box-shadow: 0 0 0 4px var(--ring-up); }
+.svc-row.status-down .status-dot { background: var(--down); box-shadow: 0 0 0 4px var(--ring-down); }
+
+/* Narrow screens: drop the 30d column rather than squeeze all three. */
+@media (max-width: 560px) {
+  .svc-meta { gap: 10px; }
+  .svc-stat:nth-child(2) { display: none; }
+  .svc-stat-value { min-width: 42px; font-size: 0.7rem; }
+}
+
+/* ---- summary pill ---- */
+
+.status-summary {
+  background: linear-gradient(100deg, rgb(var(--up-rgb) / 0.18), rgb(var(--teal-rgb) / 0.12));
+  border-color: rgb(var(--up-rgb) / 0.4);
+  color: var(--ink);
+}
+.status-summary.is-degraded {
+  background: linear-gradient(100deg, rgb(255 92 116 / 0.18), rgb(var(--idle-rgb) / 0.12));
+  border-color: rgb(255 92 116 / 0.45);
+}
+
+/* ---- lines added ---- */
+
+.gh-loc {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.76rem;
+  color: var(--lime);
+  cursor: help;
+}
+
+/* ==========================================================================
+   MORE TEAL / GREEN / PINK / PURPLE
+   ========================================================================== */
+
+:root {
+  --green: #39d353;          /* the same green as the contribution dots */
+  --green-rgb: 57 211 83;
+}
+
+/* Blooms lean harder into the four requested hues. */
+.bloom-1 { background: var(--teal);   opacity: 0.42; }
+.bloom-2 { background: var(--violet); opacity: 0.40; }
+.bloom-3 { background: var(--pink);   opacity: 0.34; }
+.bloom-4 { background: var(--green);  opacity: 0.22; }
+.bloom-5 { background: var(--violet); opacity: 0.24; }
+.bloom-6 { background: var(--pink);   opacity: 0.24; }
+
+body {
+  background:
+    radial-gradient(ellipse 70% 50% at 10% 6%,   rgb(var(--teal-rgb)   / 0.34), transparent 60%),
+    radial-gradient(ellipse 62% 46% at 90% 16%,  rgb(var(--violet-rgb) / 0.34), transparent 62%),
+    radial-gradient(ellipse 75% 55% at 80% 84%,  rgb(var(--pink-rgb)   / 0.30), transparent 60%),
+    radial-gradient(ellipse 60% 48% at 16% 90%,  rgb(var(--green-rgb)  / 0.20), transparent 62%),
+    radial-gradient(ellipse 52% 42% at 52% 48%,  rgb(var(--violet-rgb) / 0.16), transparent 64%),
+    radial-gradient(ellipse 55% 45% at 96% 58%,  rgb(var(--pink-rgb)   / 0.16), transparent 62%),
+    radial-gradient(ellipse 120% 90% at 50% 0%, var(--bg-lift), var(--bg) 45%, var(--bg-deep));
+  background-attachment: fixed;
+}
+
+/* Jellyfish across the four hues. */
+.jelly--1 { --jf: var(--teal); }
+.jelly--2 { --jf: var(--violet); }
+.jelly--3 { --jf: var(--pink); }
+.jelly--4 { --jf: var(--green); }
+.jelly--5 { --jf: var(--violet); }
+.jelly--6 { --jf: var(--pink); }
+.jelly--7 { --jf: var(--teal); }
+
+/* Snow in the same family. */
+.snow i:nth-child(4n+1) { background: rgb(var(--teal-rgb)   / 0.65); }
+.snow i:nth-child(4n+2) { background: rgb(var(--green-rgb)  / 0.6); }
+.snow i:nth-child(4n+3) { background: rgb(var(--violet-rgb) / 0.6); }
+.snow i:nth-child(4n)   { background: rgb(var(--pink-rgb)   / 0.6); }
+
+/* Section markers cycle the palette. */
+.section-links .section-title { --accent: var(--violet); }
+.section-gh    .section-title { --accent: var(--green); }
+.status-group:nth-of-type(1) { --node-accent: var(--teal); }
+.status-group:nth-of-type(2) { --node-accent: var(--pink); }
+
+/* Panel rims. */
+.profile-card { border-color: rgb(var(--violet-rgb) / 0.26); }
+.gh-card      { border-color: rgb(var(--green-rgb) / 0.24); }
+.lab-summary  { border-color: rgb(var(--teal-rgb) / 0.26); }

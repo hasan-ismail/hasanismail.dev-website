@@ -1,6 +1,7 @@
 {
   "discordUserId": "761016030892916737",
   "github": "hasan-ismail",
+  "githubOrgs": ["OpenMasjid-Solutions"],
   "nodes": [
     { "id": "node1", "label": "Node 1 — lxcpool" },
     { "id": "node2", "label": "Node 2" }
