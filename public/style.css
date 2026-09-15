@@ -1359,6 +1359,8 @@ a.pc-badge-icon:hover { transform: translateY(-2px) scale(1.12); background: rgb
   --rose: #fb7185;
   --blue-rgb: 56 189 248;
   --rose-rgb: 251 113 133;
+  --lime: #7dd85f;
+  --lime-rgb: 125 216 95;
   --idle-rgb: 230 176 84;
 }
 
@@ -1471,3 +1473,185 @@ body {
   }
   .section-title { color: var(--ink-muted); -webkit-text-fill-color: var(--ink-muted); }
 }
+
+/* ==========================================================================
+   JELLYFISH SWIMMING
+   Real jellyfish move by "pulse and glide": the bell contracts hard and fast,
+   which throws the animal forward, then relaxes slowly while it coasts. The
+   tentacles lag behind and whip on the contraction.
+
+   That rhythm is what sells it, so the timing is deliberately ASYMMETRIC —
+   a short squeeze (~22% of the cycle) and a long relax. Even, sinusoidal
+   pulsing reads as a floating blob, not a swimming animal.
+
+   Five nested layers, each animating transform only, no new markup:
+     .jelly       — the slow drift across the viewport
+     .jelly__body — horizontal weave + banking into the turn
+     .jelly__svg  — the thrust surge, synced to the bell
+     .jf-bell     — the contraction itself
+     strands/arms — the whip, phase-shifted so they trail the bell
+   ========================================================================== */
+
+.jelly__body {
+  animation: jf-weave 13s ease-in-out infinite;
+  transform-origin: 50% 30%;
+}
+
+.jelly__svg {
+  animation: jf-thrust var(--jf-beat, 4.2s) cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+
+.jf-bell {
+  transform-origin: 50% 74%;
+  animation: jf-contract var(--jf-beat, 4.2s) cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+
+.jf-strands--a,
+.jf-strands--b,
+.jf-arms {
+  transform-origin: 50% 0%;
+  /* Negative delay = start mid-cycle, so the tentacles trail the bell. */
+  animation: jf-whip var(--jf-beat, 4.2s) cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+.jf-strands--a { animation-delay: -0.16s; }
+.jf-strands--b { animation-delay: -0.26s; }
+.jf-arms       { animation-delay: -0.1s; }
+
+/* Squeeze fast, coast slow. */
+@keyframes jf-contract {
+  0%   { transform: scaleX(1)    scaleY(1); }
+  14%  { transform: scaleX(0.82) scaleY(1.2); }   /* contraction */
+  30%  { transform: scaleX(1.07) scaleY(0.9); }   /* recoil / bell opens */
+  100% { transform: scaleX(1)    scaleY(1); }     /* long glide back */
+}
+
+/* The surge: a push on the contraction, then a slow sink while coasting. */
+@keyframes jf-thrust {
+  0%   { transform: translateY(0); }
+  16%  { transform: translateY(-14px); }
+  34%  { transform: translateY(-9px); }
+  100% { transform: translateY(0); }
+}
+
+/* Tentacles compress on the thrust and stream out on the glide. */
+@keyframes jf-whip {
+  0%   { transform: skewX(0deg)  scaleY(1); }
+  16%  { transform: skewX(-7deg) scaleY(0.9); }
+  40%  { transform: skewX(6deg)  scaleY(1.06); }
+  100% { transform: skewX(0deg)  scaleY(1); }
+}
+
+/* Lateral weave, with a bank into the direction of travel. */
+@keyframes jf-weave {
+  0%, 100% { transform: translateX(0)     rotate(0deg); }
+  25%      { transform: translateX(26px)  rotate(5deg); }
+  50%      { transform: translateX(6px)   rotate(0deg); }
+  75%      { transform: translateX(-24px) rotate(-5deg); }
+}
+
+/* Each animal gets its own beat so they never pulse in unison. */
+.jelly--1 { --jf-beat: 3.8s; }
+.jelly--2 { --jf-beat: 5.1s; }
+.jelly--3 { --jf-beat: 4.4s; }
+.jelly--4 { --jf-beat: 3.3s; }
+.jelly--5 { --jf-beat: 5.8s; }
+.jelly--6 { --jf-beat: 4.7s; }
+.jelly--7 { --jf-beat: 6.3s; }
+
+/* Two more animals, and a wider spread of hues. */
+.jelly--6 {
+  left: 52%; bottom: -24vh;
+  --jf-w: 112px; --jf: var(--idle);
+  opacity: 0.5;
+  animation: jf-rise-2 68s linear infinite;
+  animation-delay: -40s;
+}
+.jelly--7 {
+  left: 8%; bottom: -30vh;
+  --jf-w: 142px; --jf: var(--lime, #7dd85f);
+  opacity: 0.44;
+  animation: jf-rise-1 92s linear infinite;
+  animation-delay: -18s;
+}
+
+/* Brighter animals — they sit behind the veil, so this costs no text contrast. */
+.jelly--1 { opacity: 0.85; }
+.jelly--2 { opacity: 0.72; }
+.jelly--3 { opacity: 0.62; }
+.jelly--4 { opacity: 0.58; }
+.jelly--5 { opacity: 0.5; }
+
+@media (max-width: 720px) {
+  .jelly--4, .jelly--5, .jelly--6, .jelly--7 { display: none; }
+}
+
+/* ==========================================================================
+   MORE COLOUR
+   Everything here is either behind the veil or is non-text chrome, so none of
+   it moves the text-contrast numbers.
+   ========================================================================== */
+
+/* Blooms carry more of the page now. */
+.bloom-1 { opacity: 0.40; }
+.bloom-2 { opacity: 0.36; }
+.bloom-3 { opacity: 0.30; }
+.bloom-4 { opacity: 0.18; }
+.bloom-5 { opacity: 0.22; }
+.bloom-6 { opacity: 0.20; }
+
+/* Richer aurora mesh — six stops instead of four. */
+body {
+  background:
+    radial-gradient(ellipse 70% 50% at 12% 8%,   rgb(var(--teal-rgb)   / 0.28), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 88% 18%,  rgb(var(--violet-rgb) / 0.30), transparent 62%),
+    radial-gradient(ellipse 75% 55% at 78% 82%,  rgb(var(--pink-rgb)   / 0.24), transparent 60%),
+    radial-gradient(ellipse 65% 50% at 18% 92%,  rgb(var(--blue-rgb)   / 0.22), transparent 62%),
+    radial-gradient(ellipse 50% 40% at 50% 50%,  rgb(var(--lime-rgb)   / 0.10), transparent 65%),
+    radial-gradient(ellipse 55% 45% at 95% 55%,  rgb(var(--idle-rgb)   / 0.14), transparent 62%),
+    radial-gradient(ellipse 120% 90% at 50% 0%, var(--bg-lift), var(--bg) 45%, var(--bg-deep));
+  background-attachment: fixed;
+}
+
+/* The wave motif is now a full spectrum sweep. */
+.wave { opacity: 1; }
+
+/* Selection and scrollbar pick up the accents. */
+::selection { background: rgb(var(--violet-rgb) / 0.45); color: var(--ink); }
+* { scrollbar-color: rgb(var(--teal-rgb) / 0.55) transparent; scrollbar-width: thin; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  background-color: rgb(var(--teal-rgb) / 0.55);
+}
+::-webkit-scrollbar-thumb:hover { background-color: rgb(var(--violet-rgb) / 0.7); }
+
+/* Each node group gets its own hue marker. */
+.status-group:nth-of-type(1) .status-group-title::before,
+.status-group:nth-of-type(2) .status-group-title::before { content: ""; }
+.status-group-title {
+  display: flex; align-items: center; gap: 7px;
+}
+.status-group-title::before {
+  content: "";
+  width: 10px; height: 2px;
+  border-radius: 2px;
+  background: var(--node-accent, var(--teal));
+  box-shadow: 0 0 8px var(--node-accent, var(--teal));
+}
+.status-group:nth-of-type(1) { --node-accent: var(--blue); }
+.status-group:nth-of-type(2) { --node-accent: var(--pink); }
+
+/* Marine snow in mixed hues rather than all teal. */
+.snow i:nth-child(4n+1) { background: rgb(var(--teal-rgb)   / 0.6); }
+.snow i:nth-child(4n+2) { background: rgb(var(--blue-rgb)   / 0.55); }
+.snow i:nth-child(4n+3) { background: rgb(var(--violet-rgb) / 0.5); }
+.snow i:nth-child(4n)   { background: rgb(var(--rose-rgb)   / 0.5); }
+
+/* Avatar ring and game tiles glow with accent colour. */
+.pc-avatar { border-color: var(--bg); box-shadow: 0 0 0 2px rgb(var(--teal-rgb) / 0.45), 0 0 22px rgb(var(--teal-rgb) / 0.3); }
+.game:nth-child(3n+1):hover .game-art { border-color: var(--teal); }
+.game:nth-child(3n+2):hover .game-art { border-color: var(--violet); }
+.game:nth-child(3n):hover   .game-art { border-color: var(--pink); }

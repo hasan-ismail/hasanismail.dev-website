@@ -238,9 +238,14 @@ a licence to add colour anywhere:
    ground; at their true brand values they read as muddy on near-black. Lift a
    new brand colour the same way rather than pasting the official hex.
 
-2. **A fourth ambient bloom** (`.bloom-4`, amber `--idle`, opacity 0.13) parked
-   bottom-right, away from the reading column, to warm a palette that was all
-   cool hues.
+2. **Six ambient blooms** across teal, violet, pink, amber, blue and rose, plus
+   a six-stop aurora mesh on `body`. `--blue` `#38bdf8`, `--rose` `#fb7185` and
+   `--lime` `#7dd85f` joined the palette for ambient use.
+
+The wave motif now takes a full-spectrum `linearGradient` stroke
+(`#wave-grad`), marine snow cycles four hues, and selection/scrollbar pick up
+accents. All of it is behind the veil or is non-text chrome, so none of it
+moves the text-contrast numbers.
 
 Glow ring alphas are `0.24`, not the `0.16` the light theme used: a 16% halo is
 nearly invisible on near-black.
@@ -283,6 +288,24 @@ Keep the bloom `scale()` amplitude ≤1.06 or they expand past their intended
 footprint.
 
 ### Jellyfish
+
+**They swim, they do not float.** Real jellyfish move by pulse-and-glide: the
+bell contracts hard and fast, throwing the animal forward, then relaxes slowly
+while it coasts. The keyframes are therefore deliberately ASYMMETRIC — a short
+squeeze (~14-30% of the cycle) and a long relax. Even, sinusoidal pulsing reads
+as a floating blob; do not "tidy" these curves into symmetry.
+
+Five nested layers, transform only, no extra markup: `.jelly` drifts,
+`.jelly__body` weaves laterally and banks into the turn, `.jelly__svg` surges
+on the thrust, `.jf-bell` contracts, and the strand/arm groups whip on a
+negative `animation-delay` so they trail the bell. A per-animal `--jf-beat`
+locks `jf-thrust`, `jf-contract` and `jf-whip` to one rhythm while no two
+animals pulse in unison. Seven animals across seven hues; four hide below
+720px.
+
+Verify changes here by reading computed `animationName` in a browser, not by
+reasoning about the cascade — the original float rules are still earlier in the
+file and only lose because the swim rules come later.
 
 Five inline SVG creatures (`.jelly--1` … `--5`) that rise slowly through the
 viewport. Each is a bell (dome, skirt, rim, sheen, two core ellipses), four oral
