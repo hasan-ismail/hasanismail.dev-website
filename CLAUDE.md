@@ -306,20 +306,31 @@ footprint.
 
 ### Backdrop artwork (replaced the jellyfish)
 
-The animated SVG jellyfish were removed;  supplies both
-the creatures and the colour, and the whole palette is sampled from it.
+The animated SVG jellyfish were removed; `public/backdrop.jpg` supplies both
+the creatures and the colour, and the whole palette is sampled from it. The
+image is hosted locally, not hotlinked from the DuckDuckGo proxy it came
+from — that proxy would have been a single point of failure for the entire
+look of the site.
 
-**The two filter numbers are load-bearing.** The source is bright — measured
+**The two filter values are load-bearing.** The source is bright — measured
 p99 luminance 0.938, near-white in the light rays — so light text over it sat
-around 2.7:1.  on  plus the flat  at 0.30
-brings the worst case to ink 7.64:1 / muted 4.97:1. Raising the brightness or
-lowering the veil drops muted text below AA. Re-measure before changing either.
+at about 2.7:1, and even a 0.75 black scrim only reached 3.34:1.
+`brightness(0.36)` on `.backdrop` plus the flat `--veil` at 0.30 brings the
+worst case to ink 7.64:1 and muted 4.97:1. Raising the brightness or lowering
+the veil drops muted text below AA. Re-measure before changing either.
 
 The layer never animates, so its blur/brightness filter rasterises once rather
-than per frame.  hides the soft edge  leaves.
+than per frame. `transform: scale(1.04)` hides the soft edge that `blur()`
+leaves at the element's borders.
 
-The old jellyfish/bloom CSS was stripped rather than left dead: 107 rule
-blocks, 72.3KB -> 59.8KB, and index.html 35KB -> 15KB.
+The old jellyfish and bloom CSS was stripped rather than left dead: 107 rule
+blocks, style.css 72.3KB -> 59.8KB, index.html 35KB -> 15KB.
+
+**Why the bell used to clip**, kept because it applies to any inline SVG here:
+`jf-contract` scaled the bell `scaleY(1.2)` about `transform-origin: 50% 74%`.
+The bell group spanned y 10..86 in viewBox units, putting that origin at
+y=66.2 and throwing the dome's top to y=-1.2 — outside `viewBox="0 0 120 260"`,
+and an SVG clips to its viewBox by default. The fix was `overflow: visible`.
 
 ### Jellyfish (removed — kept for history)
 
