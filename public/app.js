@@ -65,6 +65,28 @@ function nameplateUrls(user) {
   };
 }
 
+// Public profile badges, decoded from the public_flags bitfield. Only the
+// flags Lanyard actually exposes are listed — nothing is inferred.
+const PUBLIC_FLAGS = [
+  [1 << 0, "Discord Staff"],
+  [1 << 1, "Partner"],
+  [1 << 2, "HypeSquad Events"],
+  [1 << 3, "Bug Hunter"],
+  [1 << 6, "HypeSquad Bravery"],
+  [1 << 7, "HypeSquad Brilliance"],
+  [1 << 8, "HypeSquad Balance"],
+  [1 << 9, "Early Supporter"],
+  [1 << 14, "Bug Hunter Gold"],
+  [1 << 17, "Early Verified Bot Developer"],
+  [1 << 18, "Moderator Programs Alumni"],
+  [1 << 22, "Active Developer"],
+];
+
+function badgesFor(user) {
+  const flags = Number(user && user.public_flags) || 0;
+  return PUBLIC_FLAGS.filter((pair) => flags & pair[0]).map((pair) => pair[1]);
+}
+
 function guildTagBadgeUrl(guild) {
   if (!guild || !guild.badge || !guild.identity_guild_id) return null;
   return CDN + "/guild-tag-badges/" + guild.identity_guild_id + "/" + guild.badge + ".png?size=32";
@@ -165,6 +187,12 @@ function renderProfile(d) {
     plate.hidden = false;
   } else {
     plate.hidden = true;
+  }
+
+  const badges = document.getElementById("dc-badges");
+  if (badges) {
+    badges.textContent = "";
+    for (const label of badgesFor(user)) badges.appendChild(el("span", "pc-badge", label));
   }
 
   const platforms = document.getElementById("dc-platforms");
@@ -428,8 +456,8 @@ function initCursorGlow() {
   window.addEventListener("pointerleave", () => glow.classList.remove("is-active"));
 
   function frame() {
-    x += (targetX - x) * 0.12;
-    y += (targetY - y) * 0.12;
+    x += (targetX - x) * 0.2;
+    y += (targetY - y) * 0.2;
     glow.style.transform = "translate3d(" + x + "px, " + y + "px, 0)";
     requestAnimationFrame(frame);
   }
@@ -473,7 +501,7 @@ function setReadout(node, value, format) {
   }
 
   node.classList.add("is-changing");
-  const DURATION = 550;
+  const DURATION = 320;
   const start = performance.now();
 
   requestAnimationFrame(function step(now) {

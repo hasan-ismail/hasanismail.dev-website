@@ -134,63 +134,99 @@
 
 <div class="layout">
 
+  <!-- One merged card: the Discord profile and the bio are the same surface,
+       laid out to mirror Discord's own profile panel. -->
   <aside class="identity">
-    <div class="identity-inner glass">
-      <h1>Hasan Ismail</h1>
-      <p class="role">Founder &amp; lead developer, OpenMasjid Solutions</p>
+    <article class="profile-card glass">
 
-      <div class="presence">
-        <span class="dot" id="presence-dot"></span>
-        <span id="presence-text">connecting&hellip;</span>
+      <div class="pc-banner">
+        <video class="pc-nameplate" id="dc-nameplate" autoplay loop muted playsinline hidden></video>
       </div>
 
-      <p class="bio">
-        Building open-source, self-hosted software for masjids — and running
-        the homelab that keeps a chunk of it online.
-      </p>
+      <div class="pc-body">
+        <div class="pc-avatar-wrap">
+          <img class="pc-avatar" id="dc-avatar" alt="" width="84" height="84">
+          <img class="pc-decoration" id="dc-decoration" alt="" hidden>
+          <span class="pc-presence-dot" id="dc-presence-dot"></span>
+        </div>
 
-      <ul class="bio-lines">
-        <li>I work in IT and I like to make stuff</li>
-        <li>I self-host everything</li>
-        <li>Networking and Proxmox</li>
-        <li>Strong morals, ethics, and a shared goal</li>
-        <li>I enjoy rejecting convenience</li>
-      </ul>
+        <h1 class="pc-display" id="dc-display">Hasan Ismail</h1>
 
-      <p class="location">Queens, NYC &middot; raid is backup</p>
-    </div>
+        <p class="pc-handle">
+          <span id="dc-username">hasanismail.</span>
+          <span class="pc-sep">&bull;</span>
+          <span>raid is backup</span>
+          <span class="dc-tag" id="dc-tag" hidden></span>
+        </p>
+
+        <div class="pc-badges" id="dc-badges"></div>
+
+        <div class="pc-actions">
+          <a class="pc-btn pc-btn--primary" href="https://discord.com/users/761016030892916737" rel="noopener">Message</a>
+          <a class="pc-btn" href="https://discord.gg/H932GWJs6H" rel="noopener">Join server</a>
+        </div>
+
+        <div class="pc-presence">
+          <span class="dot" id="presence-dot"></span>
+          <span id="presence-text">connecting&hellip;</span>
+        </div>
+
+        <p class="pc-custom" id="dc-custom" hidden></p>
+
+        <div id="dc-activity-wrap" hidden>
+          <p class="pc-label">Currently</p>
+          <div id="dc-activities"></div>
+        </div>
+
+        <div class="pc-platforms" id="dc-platforms"></div>
+
+        <p class="pc-label">Bio</p>
+        <p class="pc-role">Founder &amp; lead developer, OpenMasjid Solutions</p>
+        <p class="pc-bio">
+          Building open-source, self-hosted software for masjids — and running
+          the homelab that keeps a chunk of it online.
+        </p>
+        <ul class="bio-lines">
+          <li>I work in IT and I like to make stuff</li>
+          <li>I self-host everything</li>
+          <li>Networking and Proxmox</li>
+          <li>Strong morals, ethics, and a shared goal</li>
+          <li>I enjoy rejecting convenience</li>
+        </ul>
+
+        <details class="pc-games">
+          <summary>
+            <span>Games I like</span>
+            <span class="pc-games-count">9</span>
+          </summary>
+          <div class="pc-games-body">
+            <p class="pc-games-fav"><span class="pc-star" aria-hidden="true">★</span> Dispatch <span class="pc-games-note">favourite</span></p>
+            <ul class="pc-games-list">
+              <li>Pragmata</li>
+              <li>OMORI</li>
+              <li>OneShot</li>
+              <li>The Last of Us Part I</li>
+              <li>Minecraft</li>
+              <li>Life is Strange</li>
+              <li>Stray</li>
+              <li>Dispatch</li>
+            </ul>
+          </div>
+        </details>
+
+        <p class="pc-label">Member since</p>
+        <p class="pc-meta">Sep 30, 2020</p>
+
+        <p class="pc-label">Connections</p>
+        <a class="pc-connection" href="https://openmasjidsolutions.org" rel="noopener">openmasjidsolutions.org</a>
+
+        <p class="pc-location">Queens, NYC</p>
+      </div>
+
+    </article>
   </aside>
 
   <main class="content">
-
-    <!-- Live Discord profile, via Lanyard -->
-    <section class="section" aria-label="Discord profile">
-      <div class="discord-card glass">
-        <div class="dc-banner">
-          <video class="dc-nameplate" id="dc-nameplate" autoplay loop muted playsinline hidden></video>
-        </div>
-        <div class="dc-body">
-          <div class="dc-avatar-wrap">
-            <img class="dc-avatar" id="dc-avatar" alt="" width="76" height="76">
-            <img class="dc-decoration" id="dc-decoration" alt="" hidden>
-            <span class="dc-presence-dot" id="dc-presence-dot"></span>
-          </div>
-          <div class="dc-names">
-            <span class="dc-display" id="dc-display">Hasan Ismail</span>
-            <span class="dc-username" id="dc-username"></span>
-            <span class="dc-tag" id="dc-tag" hidden></span>
-          </div>
-          <p class="dc-custom" id="dc-custom" hidden></p>
-
-          <div id="dc-activity-wrap" hidden>
-            <p class="dc-section-label">Currently</p>
-            <div id="dc-activities"></div>
-          </div>
-
-          <div class="dc-platforms" id="dc-platforms"></div>
-        </div>
-      </div>
-    </section>
 
     <svg class="wave" viewBox="0 0 400 20" preserveAspectRatio="none" aria-hidden="true">
       <path d="M0 10 Q 25 0 50 10 T 100 10 T 150 10 T 200 10 T 250 10 T 300 10 T 350 10 T 400 10"
@@ -212,6 +248,13 @@
           <span class="link-text">
             <a href="https://github.com/hasan-ismail" rel="noopener">github.com/hasan-ismail</a>
             <span class="link-desc">Personal projects — The Machine, OpenAudio</span>
+          </span>
+        </li>
+        <li class="link-item glass">
+          <span class="link-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2.1c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.4-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg></span>
+          <span class="link-text">
+            <a href="https://github.com/OpenMasjid-Solutions/OpenMasjidOS" rel="noopener">OpenMasjidOS</a>
+            <span class="link-desc">The self-hosted masjid platform</span>
           </span>
         </li>
         <li class="link-item glass">
@@ -259,6 +302,7 @@
   </main>
 
 </div>
+
 
 <script src="app.js"></script>
 </body>
