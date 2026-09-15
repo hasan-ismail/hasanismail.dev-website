@@ -53,9 +53,15 @@ Any change that threads a `target` value into an API response or a file
 under `public/` is a bug, not a feature. Logging targets server-side is
 fine; sending them to a client is not.
 
-The only routes are `/api/status`, `/api/github` and the static mount on
-`public/`. Never add a static mount or a route that could serve
-`config.json`, `data/`, or the repo root.
+The only routes are `/api/status`, `/api/github`, `/api/profile` and the
+static mount on `public/`. Never add a static mount or a route that could
+serve `config.json`, `data/`, or the repo root.
+
+`/api/github` and `/api/profile` are both **server-side proxies of public
+third-party data**, cached (1h and 30min). Neither touches `config.json`
+targets. They exist so the page doesn't hit a third-party API once per
+visitor and so a brief upstream outage degrades to stale data rather than
+an empty card.
 
 `/api/github` returns `{ user, total, days: [{ date, count, level }] }` —
 all already-public GitHub data, no addresses. It exists as a server-side
