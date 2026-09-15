@@ -161,6 +161,25 @@ the split GitHub row outright:
 half is itself the anchor and fills its side of the row, so it is already its
 own hit target. Check `elementFromPoint` on each half after touching this.
 
+**Both halves must stay structurally identical.** The row still read as
+lopsided once it was flexing, because the left half carried a subtitle and the
+right did not: its icon centred against a two-line block while the other
+centred against one line, and the two icons landed at different offsets. Both
+are icon + label only now. If you add a caption to one, add it to the other or
+the row goes crooked again.
+
+Finish details, all load-bearing for how it reads:
+
+- Padding is **21px**, which lands the row at 74px — the same height as every
+  other link pill, so it sits in the list rhythm instead of looking clipped.
+- Only the outer corners are rounded (`border-start-start-radius` etc. on
+  `:first-child` / `:last-child`), so the pair still reads as one pill.
+- The seam is `::before` on the second half, inset 22% top and bottom and
+  faded to transparent at both ends, so it reads as a join rather than a hard
+  rule butting into the rounded corners.
+- Under 430px the halves stack icon-over-label; two labels do not fit side by
+  side on a small phone.
+
 ### /api/social — best-effort, mostly blocked
 
 Returns only the sources that actually answered. A missing key is the normal

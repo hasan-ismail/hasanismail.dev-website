@@ -2338,3 +2338,87 @@ body {
 }
 .link-item a.link-half::before,
 .link-item a.link-half::after { content: none; }
+
+/* ==========================================================================
+   SPLIT LINK ROW, final
+
+   The row kept reading as lopsided because the two halves were not the same
+   shape: the left one carried a subtitle and the right one did not, so its
+   icon centred against a two-line block while the other centred against one,
+   and the two icons landed at different offsets. Both halves are now icon +
+   label only, which is the whole fix — everything below is just finish.
+   ========================================================================== */
+
+.link--split { padding: 0; gap: 0; align-items: stretch; }
+
+.link-item a.link-half {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  /* 21px, not 15: this lands the row at 74px, the same height as every
+     other link pill, so the split row sits in the list rhythm. */
+  padding: 21px 18px;
+  border-radius: 0;
+  color: inherit;
+  text-decoration: none;
+  font-size: inherit;
+  font-weight: inherit;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  transition: background 0.18s ease;
+}
+/* Round only the outer corners so the pair still reads as one pill. */
+.link-item a.link-half:first-child { border-start-start-radius: inherit; border-end-start-radius: inherit; }
+.link-item a.link-half:last-child  { border-start-end-radius: inherit; border-end-end-radius: inherit; }
+
+.link-item a.link-half:hover { background: rgb(var(--brand-rgb) / 0.12); }
+.link-item a.link-half:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -3px; }
+
+/* .link-item a::before is a full-bleed click overlay and ::after is the row
+   arrow; both are wrong for a two-anchor row (see CLAUDE.md). Killed here,
+   then ::before is re-purposed on the SECOND half only, as the seam. */
+.link-item a.link-half::before,
+.link-item a.link-half::after { content: none; }
+
+/* The seam. Inset from the pill edges and faded at both ends so it reads as
+   a join rather than a hard rule butting into the rounded corners. */
+.link-item a.link-half + a.link-half::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 22%;
+  bottom: 22%;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--brand-rgb) / 0),
+    rgb(var(--brand-rgb) / 0.5),
+    rgb(var(--brand-rgb) / 0)
+  );
+}
+
+.link--split .link-icon { width: 30px; height: 30px; border-radius: 9px; }
+.link--split .link-icon svg { width: 16px; height: 16px; }
+.link--split .link-text { flex: 0 1 auto; min-width: 0; }
+.link--split .link-title {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Two labelled halves do not fit side by side on a small phone; stack the
+   icon over the label and let the seam run the full height. */
+@media (max-width: 430px) {
+  .link-item a.link-half { flex-direction: column; gap: 7px; padding: 13px 8px; }
+  .link--split .link-title { font-size: 0.8rem; }
+  .link-item a.link-half + a.link-half::before { top: 14%; bottom: 14%; }
+}
