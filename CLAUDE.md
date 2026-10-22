@@ -98,6 +98,15 @@ The only routes are `GET /api/status`, `/api/github`, `/api/profile`,
 a static mount or a route that could serve `config.json`, `data/` (which now
 holds `contact-log.jsonl` — visitor IPs and messages), or the repo root.
 
+**Errors never return a stack trace.** Express's default error handler answers
+with an HTML page containing the full stack whenever `NODE_ENV` is not
+`production`, and the live site did exactly that for a malformed JSON body to
+`/api/contact` — printing `/opt/hasanismail-site/node_modules/...` paths to
+anyone who asked. The last middleware in `server.js` now turns body-parser
+errors into `413` / `400` JSON and everything else into a bare `500`, logging
+the detail server-side; the unit also sets `NODE_ENV=production` as a
+backstop. Keep the handler last, after every route.
+
 `/api/github` and `/api/profile` are both **server-side proxies of public
 third-party data**, cached (1h and 30min). Neither touches `config.json`
 targets. They exist so the page doesn't hit a third-party API once per
@@ -208,21 +217,25 @@ Finish details, all load-bearing for how it reads:
 
 ### Contact form — POST /api/contact → Discord webhook
 
-The "Message me" section (after Links) sends a topic, a message of up to 2000
-characters, and an optional reply contact (Discord / WhatsApp / Email /
-Instagram / Telegram / Other + handle). The server forwards it to a Discord
-webhook as an embed with everything it can learn about the sender:
+The "Message me" section — the **last** section, after GitHub and Homelab —
+sends a message of up to 2000 characters and an optional reply contact
+(Discord / WhatsApp / Email / Instagram / Telegram / Other + handle). There is
+no topic field; the owner removed it, and the server ignores a `topic` an old
+cached page may still send. The server forwards it to a Discord webhook as an
+embed titled "📬 New message" with everything it can learn about the sender:
 
 - **IP** from `CF-Connecting-IP` (behind the tunnel the socket is always
   cloudflared). That header can be forged by anyone on the LAN, so the socket
   address is kept too and the embed notes when the IP came from elsewhere.
-- **Location**: Cloudflare's own headers when present (country always; city,
-  region, coordinates and timezone once "Add visitor location headers" is
-  turned on under Rules → Transform Rules → Managed Transforms), plus a
-  server-side lookup at **ipwho.is** for city, coordinates, ASN and network
-  operator. HTTPS on purpose — ip-api.com's free tier is plain HTTP and would
-  send every sender's IP across the internet in the clear. The embed links an
-  approximate OpenStreetMap pin.
+- **Location**: a server-side lookup at **ipwho.is** for city, coordinates,
+  ASN and network operator — HTTPS on purpose; ip-api.com's free tier is plain
+  HTTP and would send every sender's IP across the internet in the clear —
+  with an approximate OpenStreetMap pin. **Plus Cloudflare's own reading** as a
+  separate "Location (Cloudflare)" field: country always, and city, region,
+  coordinates and timezone because "Add visitor location headers" is on (in the
+  current dashboard: Rules → Settings → Managed Transforms). Those headers
+  travel Cloudflare → origin only and are not observable from outside, so that
+  embed field is the one place to confirm the setting still works.
 - **VPN / datacenter**: a heuristic on the ASN name, labelled as one, plus a
   check of the browser's reported timezone against the IP's — a mismatch is the
   most reliable VPN tell available without a paid service.
@@ -234,11 +247,10 @@ webhook as an embed with everything it can learn about the sender:
   window, pixel ratio, cores, memory, touch points, connection, colour scheme,
   referrer, seconds from page open to send. All spoofable, labelled "reported".
 
-**The form says this happens**, in a line under the button. That notice is
-deliberate — collecting this much without saying so is the part that creates
-trust and legal problems. Keep it.
+There was a line under the button telling senders this is recorded; the owner
+chose to remove it. If it ever comes back, it goes after `.contact-actions`.
 
-Rules the route keeps (all covered by the end-to-end test, 29/29):
+Rules the route keeps (covered by the end-to-end tests, 30 + 9):
 
 - `DISCORD_WEBHOOK_URL` comes only from `/etc/hasanismail-site.env`. Anyone who
   has a webhook URL can post to that channel. It is validated as a Discord

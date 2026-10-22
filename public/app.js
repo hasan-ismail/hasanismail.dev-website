@@ -1572,8 +1572,7 @@ async function loadSocial() {
 // Posts to /api/contact, which forwards to the owner's Discord. Alongside the
 // message it sends what the browser reports about itself (timezone, screen,
 // hardware, languages); the server adds IP, location and the parsed user
-// agent. The form's own notice tells senders this. The server never echoes
-// any of it back — the response is just ok or an error message.
+// agent. None of it is echoed back — the response is just ok or an error.
 
 const PAGE_OPENED_AT = Date.now();
 
@@ -1676,7 +1675,6 @@ function initContact() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          topic: form.elements.topic.value,
           message: text,
           method: handle.value.trim() ? method.value : "",
           handle: handle.value.trim(),

@@ -244,64 +244,6 @@
       </ul>
     </section>
 
-    <section class="section section-contact" aria-label="Send me a message">
-      <h2 class="section-title">Message me</h2>
-      <!-- Posts to /api/contact, which forwards to a Discord webhook. The
-           notice at the bottom is deliberate: the server records the sender's
-           IP, location and device with every message. Keep it. -->
-      <form class="contact glass" id="contact-form" novalidate>
-        <div class="contact-field">
-          <label class="contact-label" for="c-topic">Topic</label>
-          <select class="contact-input" id="c-topic" name="topic" required>
-            <option value="general">General</option>
-            <option value="openmasjid">OpenMasjid</option>
-            <option value="work">Work / hiring</option>
-            <option value="homelab">Homelab &amp; tech</option>
-            <option value="collab">Collaboration</option>
-            <option value="feedback">Feedback / bug report</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-
-        <div class="contact-field">
-          <label class="contact-label" for="c-message">Message</label>
-          <textarea class="contact-input contact-textarea" id="c-message" name="message"
-                    rows="5" maxlength="2000" required placeholder="What's on your mind?"></textarea>
-          <span class="contact-count" id="c-count" aria-live="off">0 / 2000</span>
-        </div>
-
-        <fieldset class="contact-reply">
-          <legend class="contact-label">Want a reply? <span class="contact-optional">optional</span></legend>
-          <div class="contact-reply-row">
-            <select class="contact-input contact-method" id="c-method" name="method" aria-label="How should I reply?">
-              <option value="discord">Discord</option>
-              <option value="whatsapp">WhatsApp</option>
-              <option value="email">Email</option>
-              <option value="instagram">Instagram</option>
-              <option value="telegram">Telegram</option>
-              <option value="other">Other</option>
-            </select>
-            <input class="contact-input contact-handle" id="c-handle" name="handle" type="text"
-                   maxlength="120" autocomplete="off" placeholder="your Discord username"
-                   aria-label="Your handle, number or email">
-          </div>
-        </fieldset>
-
-        <!-- Honeypot: invisible to people, irresistible to form-filling bots. -->
-        <div class="contact-hp" aria-hidden="true">
-          <label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
-        </div>
-
-        <div class="contact-actions">
-          <button class="contact-send" id="c-send" type="submit">Send message</button>
-          <p class="contact-status" id="c-status" role="status" aria-live="polite"></p>
-        </div>
-        <p class="contact-note">
-          Sending this also records your IP address, approximate location and
-          device details along with your message, so I can filter out spam.
-        </p>
-      </form>
-    </section>
 
     <section class="section section-gh" aria-label="GitHub contributions">
       <h2 class="section-title">GitHub</h2>
@@ -346,6 +288,47 @@
           <p class="status-meta" id="status-meta"></p>
         </div>
       </details>
+    </section>
+
+    <section class="section section-contact" aria-label="Send me a message">
+      <h2 class="section-title">Message me</h2>
+      <!-- Posts to /api/contact, which forwards to a Discord webhook along
+           with the sender's IP, location and device details. -->
+      <form class="contact glass" id="contact-form" novalidate>
+        <div class="contact-field">
+          <label class="contact-label" for="c-message">Message</label>
+          <textarea class="contact-input contact-textarea" id="c-message" name="message"
+                    rows="5" maxlength="2000" required placeholder="What's on your mind?"></textarea>
+          <span class="contact-count" id="c-count" aria-live="off">0 / 2000</span>
+        </div>
+
+        <fieldset class="contact-reply">
+          <legend class="contact-label">Want a reply? <span class="contact-optional">optional</span></legend>
+          <div class="contact-reply-row">
+            <select class="contact-input contact-method" id="c-method" name="method" aria-label="How should I reply?">
+              <option value="discord">Discord</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="email">Email</option>
+              <option value="instagram">Instagram</option>
+              <option value="telegram">Telegram</option>
+              <option value="other">Other</option>
+            </select>
+            <input class="contact-input contact-handle" id="c-handle" name="handle" type="text"
+                   maxlength="120" autocomplete="off" placeholder="your Discord username"
+                   aria-label="Your handle, number or email">
+          </div>
+        </fieldset>
+
+        <!-- Honeypot: invisible to people, irresistible to form-filling bots. -->
+        <div class="contact-hp" aria-hidden="true">
+          <label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+        </div>
+
+        <div class="contact-actions">
+          <button class="contact-send" id="c-send" type="submit">Send message</button>
+          <p class="contact-status" id="c-status" role="status" aria-live="polite"></p>
+        </div>
+      </form>
     </section>
 
   </main>

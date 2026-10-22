@@ -1200,11 +1200,11 @@ app.get("/api/social", (req, res) => {
 
 // ---------- contact form -> Discord webhook ----------
 //
-// Visitors send a message, an optional way to reply, and a topic. The server
+// Visitors send a message and an optional way to reply. The server
 // forwards it to a Discord webhook together with everything it can learn about
 // the sender: IP, IP geolocation and network, parsed user agent, and what the
-// browser reports about itself. The form tells senders this happens; keep that
-// notice if you touch the markup.
+// browser reports about itself. (The form used to say so in a line under the
+// button; the owner removed it.)
 //
 // Rules this code keeps:
 //   * DISCORD_WEBHOOK_URL comes only from the environment. Anyone holding a
@@ -1235,15 +1235,7 @@ const CONTACT_ORIGINS = new Set([
   "http://127.0.0.1:" + PORT,
 ]);
 
-const CONTACT_TOPICS = Object.freeze({
-  general: { label: "General", color: 0x7ae8fb },
-  openmasjid: { label: "OpenMasjid", color: 0x7ef0c8 },
-  work: { label: "Work / hiring", color: 0xffd79a },
-  homelab: { label: "Homelab & tech", color: 0xb3b8ff },
-  collab: { label: "Collaboration", color: 0xff8ada },
-  feedback: { label: "Feedback / bug report", color: 0xffa9b8 },
-  other: { label: "Other", color: 0xc9d6e4 },
-});
+const CONTACT_COLOR = 0x7ae8fb; // embed accent, the site's cyan
 const CONTACT_METHODS = Object.freeze({
   discord: "Discord",
   whatsapp: "WhatsApp",
@@ -1456,7 +1448,6 @@ function escapeDiscord(text) {
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
 function buildContactEmbed(m) {
-  const topic = CONTACT_TOPICS[m.topic];
   const fields = [];
   const add = (name, value, inline = false) => {
     if (value === null || value === undefined || value === "") return;
@@ -1471,6 +1462,14 @@ function buildContactEmbed(m) {
   add("Location", place ? (geo?.flag ? geo.flag + " " : "") + place + (geo?.postal ? " " + geo.postal : "") : null, true);
   if (geo?.lat !== null && geo?.lat !== undefined && geo?.lon !== null && geo?.lon !== undefined) {
     add("Map (approximate)", "[" + geo.lat.toFixed(3) + ", " + geo.lon.toFixed(3) + "](https://www.openstreetmap.org/?mlat=" + geo.lat + "&mlon=" + geo.lon + "#map=11/" + geo.lat + "/" + geo.lon + ")", true);
+  }
+  // Cloudflare's own reading, shown separately: it is the only visible proof
+  // that "Add visitor location headers" is switched on (the headers travel
+  // Cloudflare -> origin and are never observable from outside), and a second
+  // geolocation source is useful when the two disagree.
+  if (cf && (cf.city || cf.region)) {
+    add("Location (Cloudflare)", [cf.city, cf.region, cf.country].filter(Boolean).join(", ") +
+      (cf.timezone ? " · " + cf.timezone : ""), true);
   }
   if (geo) {
     const net = [geo.asn ? "AS" + geo.asn : null, geo.isp || geo.org].filter(Boolean).join(" · ");
@@ -1519,9 +1518,9 @@ function buildContactEmbed(m) {
   add("User agent", "```" + clip(m.userAgent.replace(/`/g, "'"), 900) + "```", false);
 
   return {
-    title: "📬 " + topic.label,
+    title: "📬 New message",
     description: clip(escapeDiscord(m.message), 4000),
-    color: topic.color,
+    color: CONTACT_COLOR,
     fields: fields.slice(0, 25),
     footer: { text: "hasanismail.dev" + (m.cfRay ? " · cf-ray " + m.cfRay : "") },
     timestamp: m.at,
@@ -1580,7 +1579,6 @@ app.post("/api/contact", express.json({ limit: "16kb" }), async (req, res) => {
 
   const b = req.body && typeof req.body === "object" ? req.body : {};
   const message = typeof b.message === "string" ? b.message.replace(/\r\n/g, "\n").trim() : "";
-  const topic = typeof b.topic === "string" && CONTACT_TOPICS[b.topic] ? b.topic : null;
   const method = typeof b.method === "string" && CONTACT_METHODS[b.method] ? b.method : null;
   const handle = typeof b.handle === "string" ? b.handle.trim().slice(0, 120) : "";
   const client = pickClientInfo(b.client);
@@ -1591,7 +1589,6 @@ app.post("/api/contact", express.json({ limit: "16kb" }), async (req, res) => {
     return res.json({ ok: true });
   }
 
-  if (!topic) return fail(400, "Pick a topic.");
   if (message.length < 2) return fail(400, "Write a message first.");
   if (message.length > 2000) return fail(400, "That's over 2000 characters — trim it a little.");
   if (handle && !method) return fail(400, "Pick how I should reply.");
@@ -1604,7 +1601,6 @@ app.post("/api/contact", express.json({ limit: "16kb" }), async (req, res) => {
   const userAgent = String(req.get("user-agent") || "").slice(0, 400);
   const entry = {
     at: new Date().toISOString(),
-    topic,
     message,
     reply: handle ? { method, handle } : null,
     ip,
@@ -1626,6 +1622,23 @@ app.post("/api/contact", express.json({ limit: "16kb" }), async (req, res) => {
   const logged = await appendContactLog({ ...entry, delivered: sent });
   if (!sent && !logged) return fail(502, "Couldn't send that right now — please try again later.");
   res.json({ ok: true });
+});
+
+// Last-resort error handler. Without it Express's default handler answers
+// with an HTML page containing the full stack trace whenever NODE_ENV is not
+// "production" — and the live site was doing exactly that for a malformed
+// JSON body, printing /opt/hasanismail-site/node_modules/... paths to anyone
+// who asked. Errors are logged here, never returned.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err && err.type === "entity.too.large") {
+    return res.status(413).json({ ok: false, error: "That message is too large." });
+  }
+  if (err && err.type === "entity.parse.failed") {
+    return res.status(400).json({ ok: false, error: "Couldn't read that request." });
+  }
+  console.error("unhandled error on " + req.method + " " + req.path + ":", err && err.message);
+  res.status(500).json({ ok: false, error: "Something went wrong." });
 });
 
 app.listen(PORT, () => {

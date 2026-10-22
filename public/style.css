@@ -2818,9 +2818,3 @@ body {
 .contact-status.is-ok { color: var(--green-lt); }
 .contact-status.is-error { color: #ffb3c0; }
 
-.contact-note {
-  margin: 0;
-  font-size: 0.72rem;
-  line-height: 1.5;
-  color: var(--ink-muted);
-}
