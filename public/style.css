@@ -2818,3 +2818,31 @@ body {
 .contact-status.is-ok { color: var(--green-lt); }
 .contact-status.is-error { color: #ffb3c0; }
 
+
+/* ==========================================================================
+   SERVICE ROWS: live CPU / RAM per guest, uptime per node
+   The rows used to carry 24h and 30d uptime per guest; those moved to the
+   node header (as node availability) and the rows now show what each guest
+   is actually using.
+   ========================================================================== */
+
+.status-group-label { min-width: 0; }
+.status-group-stats {
+  margin-inline-start: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.66rem;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+/* Near the limit: CPU at 80%+ of the guest's cores, RAM at 90%+ of its
+   allocation. VMs are exempt on RAM — see app.js. */
+.svc-stat.is-hot .svc-stat-value { color: var(--amber); }
+
+/* On a phone three columns crowd the names, so one goes — and since CPU and
+   RAM are the point of these rows, it is ping, not RAM. Class selectors, not
+   nth-child: the old rule hid "the 2nd column", which is RAM now. */
+@media (max-width: 560px) {
+  .svc-stat:nth-child(2) { display: flex; }
+  .svc-stat--latencyMs { display: none; }
+}

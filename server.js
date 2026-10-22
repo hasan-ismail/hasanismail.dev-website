@@ -408,16 +408,30 @@ async function refreshProxmox() {
           node: String(g.node),
           kind: g.type === "qemu" ? "vm" : "lxc",
           state: String(g.status),
+          // Proxmox reports a guest's `cpu` as a fraction of ITS OWN allocated
+          // cores (0..1), not of the host — 0.69 on a 4-core LXC is 69% of
+          // those 4. A stopped guest reports 0; show nothing rather than 0%.
+          cpu: g.status === "running" && num(g.cpu) !== null ? Math.round(g.cpu * 1000) / 10 : null,
+          cores: num(g.maxcpu),
+          // For a VM this is memory as the HOST sees it. A Windows guest
+          // without the balloon driver reads as roughly its full allocation
+          // (VM 201 shows 24.4 of 24 GB) — it is not usage inside the guest.
+          memUsed: g.status === "running" ? num(g.mem) : null,
+          memTotal: num(g.maxmem),
         }))
         .sort((a, b) => a.vmid - b.vmid),
     };
     // Guests with no check of their own get one sample per round from their
-    // Proxmox state, so they build up 24h/30d uptime like everything else.
+    // Proxmox state; their status comes from it.
     for (const g of pxInventory.guests) {
       if (!serviceForGuest(g)?.target) {
         recordResult(serviceForGuest(g)?.id ?? slugOf(g.name), g.state === "running", null);
       }
     }
+    // Node availability, one sample per round. 24h/30d uptime is reported per
+    // NODE now; the rows show live CPU and RAM instead. Keys carry a colon,
+    // which no service id can (slugs are [a-z0-9-]), so they cannot collide.
+    for (const n of pxInventory.nodes) recordResult("node:" + n.node, n.online, null);
   } catch (err) {
     console.error("proxmox inventory failed (keeping last good):", err.message);
   } finally {
@@ -907,8 +921,10 @@ app.get("/api/profile", async (req, res) => {
 // ---------- public API (sanitized — no internal hosts/ports/IPs) ----------
 
 // One row of the public list. Every field is explicitly chosen: `id`, `name`
-// and `node` are labels, `kind` is "lxc" | "vm" | null. `target`, the Homarr
-// URL, vmids and anything else address-like never appear.
+// and `node` are labels, `kind` is "lxc" | "vm" | null, and cpu/cores/memUsed/
+// memTotal are the guest's live usage (null for a check that is not a cluster
+// guest). `target`, the Homarr URL, vmids and anything else address-like never
+// appear. 24h/30d uptime is per node now, on the node entries.
 function statusRow(id, name, node, publicUrl, guest) {
   const last = history[id]?.last;
   let status = last ? (last.ok ? "up" : "down") : "unknown";
@@ -923,8 +939,10 @@ function statusRow(id, name, node, publicUrl, guest) {
     status,
     latencyMs: status === "up" && last?.ok ? last.latencyMs : null,
     lastChecked: last?.at ?? null,
-    uptime24h: uptime24h(id),
-    uptime30d: uptimeOverDays(id, RETAIN_DAYS),
+    cpu: guest ? guest.cpu : null,
+    cores: guest ? guest.cores : null,
+    memUsed: guest ? guest.memUsed : null,
+    memTotal: guest ? guest.memTotal : null,
     publicUrl: publicUrl ?? null,
     kind: guest ? guest.kind : null,
   };
@@ -977,6 +995,10 @@ app.get("/api/status", (req, res) => {
     memTotal: px ? px.memTotal : null,
     uptime: px ? px.uptime : null,
     guests: counts.get(id) ?? null,
+    // Availability from our own once-a-round samples of the node's online
+    // state — not Proxmox's boot uptime, which is `uptime` above.
+    uptime24h: px ? uptime24h("node:" + px.node) : null,
+    uptime30d: px ? uptimeOverDays("node:" + px.node, RETAIN_DAYS) : null,
   });
   const nodes = (config.nodes ?? []).map((n) =>
     nodeRow(n.id, n.label, pxInventory?.nodes.find((x) => x.node === n.proxmox)),

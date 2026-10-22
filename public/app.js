@@ -510,6 +510,25 @@ function formatLatency(value) {
   return value === null || value === undefined ? "—" : Math.round(value) + " ms";
 }
 
+// Percent of the guest's OWN allocated cores, as Proxmox reports it.
+function formatCpu(value) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  return (value < 10 ? value.toFixed(1) : Math.round(value)) + "%";
+}
+
+// Memory in use, compact: "512M", "1.2G", "24G".
+function formatRam(bytes) {
+  if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return "—";
+  const gb = bytes / 1073741824;
+  if (gb < 1) return Math.round(bytes / 1048576) + "M";
+  return (gb < 10 ? gb.toFixed(1) : Math.round(gb)) + "G";
+}
+
+function gbLabel(bytes) {
+  const gb = bytes / 1073741824;
+  return gb < 1 ? Math.round(bytes / 1048576) + " MB" : (gb < 10 ? gb.toFixed(1) : Math.round(gb)) + " GB";
+}
+
 function relativeTime(iso) {
   if (!iso) return "never";
   const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
@@ -558,6 +577,7 @@ function setReadout(node, value, format) {
 // entrance animation every poll and discard the number tweens.
 const tiles = new Map();
 const groups = new Map();
+const nodeStats = new Map(); // node id -> the header element holding 24h/30d
 
 function buildTile(svc, index) {
   const row = el("div", "svc-row status-" + svc.status);
@@ -576,15 +596,20 @@ function buildTile(svc, index) {
   if (svc.kind === "vm") name.appendChild(el("span", "svc-kind", "VM"));
   row.appendChild(name);
 
+  // Live CPU and RAM per guest; 24h/30d uptime lives on the node header now.
+  // Column order matters to the CSS: on a phone the third (ping) is the one
+  // dropped, because CPU and RAM are the point of these rows.
   const readouts = {};
+  const cells = {};
   const meta = el("span", "svc-meta");
-  for (const [key, label] of [["uptime24h", "24h"], ["uptime30d", "30d"], ["latencyMs", "ping"]]) {
-    const cell = el("span", "svc-stat");
+  for (const [key, label] of [["cpu", "cpu"], ["ram", "ram"], ["latencyMs", "ping"]]) {
+    const cell = el("span", "svc-stat svc-stat--" + key);
     cell.appendChild(el("span", "svc-stat-label", label));
     const val = el("span", "svc-stat-value");
     cell.appendChild(val);
     meta.appendChild(cell);
     readouts[key] = val;
+    cells[key] = cell;
   }
   row.appendChild(meta);
 
@@ -601,7 +626,7 @@ function buildTile(svc, index) {
   }
   row.appendChild(visitSlot);
 
-  return { card: row, readouts, sr };
+  return { card: row, readouts, cells, sr };
 }
 
 function gridForNode(nodeId, nodes) {
@@ -611,7 +636,15 @@ function gridForNode(nodeId, nodes) {
   const wrap = el("div", "status-group");
 
   const meta = nodes.find((n) => n.id === nodeId);
-  if (meta) wrap.appendChild(el("h3", "status-group-title", meta.label));
+  if (meta) {
+    const title = el("h3", "status-group-title");
+    title.appendChild(el("span", "status-group-label", meta.label));
+    // The node's own 24h / 30d availability, filled in by renderStatus().
+    const stats = el("span", "status-group-stats");
+    title.appendChild(stats);
+    nodeStats.set(nodeId, stats);
+    wrap.appendChild(title);
+  }
 
   const grid = el("div", "svc-list");
   wrap.appendChild(grid);
@@ -640,10 +673,29 @@ function renderStatus(services, nodes) {
     }
     tile.card.className = "svc-row status-" + svc.status;
     if (tile.sr) tile.sr.textContent = svc.name + ": " + svc.status;
-    setReadout(tile.readouts.uptime24h, svc.uptime24h, formatUptime);
-    setReadout(tile.readouts.uptime30d, svc.uptime30d, formatUptime);
+    setReadout(tile.readouts.cpu, svc.cpu, formatCpu);
+    setReadout(tile.readouts.ram, svc.memUsed, formatRam);
     setReadout(tile.readouts.latencyMs, svc.latencyMs, formatLatency);
+
+    // Full figures on hover, and a warm tint when a guest is near its limit.
+    tile.cells.cpu.title = svc.cpu == null ? "" :
+      formatCpu(svc.cpu) + " of " + svc.cores + (svc.cores === 1 ? " core" : " cores");
+    const memPct = svc.memUsed != null && svc.memTotal ? (svc.memUsed / svc.memTotal) * 100 : null;
+    tile.cells.ram.title = svc.memUsed == null ? "" :
+      gbLabel(svc.memUsed) + " of " + gbLabel(svc.memTotal) +
+      (svc.kind === "vm" ? " (as the host sees it)" : " (" + Math.round(memPct) + "%)");
+    tile.cells.cpu.classList.toggle("is-hot", svc.cpu != null && svc.cpu >= 80);
+    // A VM's host-side figure sits near 100% by design, so it never "runs hot".
+    tile.cells.ram.classList.toggle("is-hot", svc.kind !== "vm" && memPct != null && memPct >= 90);
   });
+
+  // Node headers: availability over 24h / 30d from our own samples.
+  for (const n of nodes) {
+    const stats = nodeStats.get(n.id);
+    if (!stats) continue;
+    stats.textContent = n.uptime24h == null && n.uptime30d == null ? "" :
+      "24h " + formatUptime(n.uptime24h) + " · 30d " + formatUptime(n.uptime30d);
+  }
 
   // Drop tiles for services removed from config.json.
   const live = new Set(services.map((s) => s.id));

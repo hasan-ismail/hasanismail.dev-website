@@ -51,9 +51,9 @@ The response envelope is exactly:
 
 ```json
 { "nodes": [ { "id", "label", "online", "cpu", "cores", "mem", "memUsed",
-               "memTotal", "uptime", "guests" } ],
+               "memTotal", "uptime", "guests", "uptime24h", "uptime30d" } ],
   "services": [ { "id", "name", "node", "status", "latencyMs", "lastChecked",
-                  "uptime24h", "uptime30d", "publicUrl", "kind" } ],
+                  "cpu", "cores", "memUsed", "memTotal", "publicUrl", "kind" } ],
   "cluster": { "uptime", "vms": {online, offline}, "lxcs": {…}, "storage": {…},
                "pool": { "label", "used", "total", "pct" } } | null,
   "network": { "online", "latencyMs", "latencyAvgMs", "availability",
@@ -77,8 +77,19 @@ or has never reached Homarr since boot.
 - `status` is `"up"` | `"down"` | `"unknown"`.
 - `latencyMs` is `null` unless the last check succeeded.
 - `lastChecked` is `null` until the first check completes.
-- `uptime24h` / `uptime30d` are percentages to one decimal, or `null`
-  with no data yet.
+- `uptime24h` / `uptime30d` are **per node**: the node's availability from our
+  own once-a-round samples of its online state (history keys `node:<proxmox
+  name>` — the colon cannot occur in a service slug, so no collision).
+  Percentages to one decimal, or `null` with no data. Not to be confused with
+  the node's `uptime`, which is Proxmox's seconds since boot. Rows no longer
+  carry uptime; the owner moved it to the node and gave the space to CPU/RAM.
+- `cpu` on a row is the guest's CPU as a percent of **its own allocated
+  cores** (`cores`), which is how Proxmox reports it — 69 on a 4-core LXC is
+  69% of those 4, not of the host. `memUsed` / `memTotal` are bytes. All four
+  are `null` for a stopped guest and for a check that is not a cluster guest.
+  For a **VM**, `memUsed` is memory as the host sees it: a Windows guest
+  without the balloon driver reads as about its full allocation (VM 201 shows
+  24.4 of 24 GB). The row's tooltip says so and the near-limit tint ignores it.
 - `id` is a config slug, not host data — it is safe to expose.
 - `node` / `nodes` are display labels ("Node 1 — proxmox"), not addresses.
 - `publicUrl` is an intentionally public link, or `null`.
@@ -978,9 +989,21 @@ so status stays glanceable without expanding — keep it there if you restyle
 this, that pill is the whole point of hiding the rest.
 
 Inside: a **list** (`.svc-list` / `.svc-row`), not a tile grid — rows read
-faster for 26 services. Each row is a status dot, the service name, then three
-mono stats right-aligned (24h, 30d, ping) and an optional visit link. Below
-560px the 30d column is hidden rather than letting all three collide.
+faster for 30 services. Each row is a status dot, the service name (with a
+"VM" marker for VMs), then three mono stats right-aligned — **cpu, ram,
+ping** — and an optional visit link. Hovering cpu gives "N% of K cores";
+hovering ram gives "used of allocated". A guest at 80%+ CPU or 90%+ RAM tints
+amber (`.is-hot`); VMs are exempt on RAM because their host-side figure sits
+near 100% by design.
+
+**24h / 30d uptime is per node**, on the right of each node header
+(`.status-group-stats`), not per row. Below 560px the **ping** column is the
+one hidden (`.svc-stat--latencyMs`) — CPU and RAM are the point of the rows.
+Use the per-column classes, not `nth-child`: the old rule hid "the 2nd
+column", which became RAM when the columns changed.
+
+Measured with the glyph-mask rig with the list open: 156 text elements on a
+phone and 214 on desktop, **0 below AA**, the amber state included.
 
 The summary pill reads "All services online and operational" on a green
 bubble when everything is up, and "Some services offline — N of M online" on
