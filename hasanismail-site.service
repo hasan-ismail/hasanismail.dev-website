@@ -14,6 +14,12 @@ ExecStart=/usr/bin/node server.js
 Restart=on-failure
 RestartSec=5
 Environment=PORT=3300
+# Secrets live OUTSIDE the repo, which is public. install.sh creates this file
+# root-owned and mode 0600 if it is missing, and never overwrites it. systemd
+# reads it as root before dropping to the service user, so the service user
+# does not need to be able to read it at all. The leading "-" keeps the unit
+# starting without it; the homelab panels then fall back to config.json only.
+EnvironmentFile=-/etc/hasanismail-site.env
 
 # --- hardening ---
 NoNewPrivileges=true

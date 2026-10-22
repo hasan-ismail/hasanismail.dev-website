@@ -4,18 +4,36 @@
   "githubOrgs": [
     "OpenMasjid-Solutions"
   ],
+  "social": {
+    "youtube": "hasanismail.",
+    "reddit": "hasanismail_",
+    "instagram": "hasanismail.usa"
+  },
+  "homarr": {
+    "url": "http://192.168.1.33:7575"
+  },
+  "homelab": {
+    "hidden": [],
+    "pool": {
+      "storage": "media",
+      "label": "Media pool"
+    }
+  },
   "nodes": [
     {
       "id": "node1",
-      "label": "Node 1 — proxmox"
+      "label": "Node 1 — proxmox",
+      "proxmox": "proxmox"
     },
     {
       "id": "node2",
-      "label": "Node 2 — proxmox 2"
+      "label": "Node 2 — proxmox 2",
+      "proxmox": "proxmox2"
     },
     {
       "id": "node3",
-      "label": "Node 3 — OpenMasjid CI/CD"
+      "label": "Node 3 — proxmox 3",
+      "proxmox": "proxmox3"
     }
   ],
   "services": [
@@ -39,7 +57,8 @@
       "node": "node1",
       "type": "http",
       "target": "https://openmasjidsolutions.org",
-      "publicUrl": "https://openmasjidsolutions.org"
+      "publicUrl": "https://openmasjidsolutions.org",
+      "guest": "openmasjidsolutions.org"
     },
     {
       "id": "jellyfin",
@@ -205,14 +224,9 @@
     {
       "id": "openmasjid-cicd",
       "name": "OpenMasjid CI/CD",
-      "node": "node3",
+      "node": "node2",
       "type": "tcp",
-      "target": "192.168.1.224:3389"
+      "target": "192.168.1.55:3389"
     }
-  ],
-  "social": {
-    "youtube": "hasanismail.",
-    "reddit": "hasanismail_",
-    "instagram": "hasanismail.usa"
-  }
+  ]
 }

@@ -572,6 +572,8 @@ function buildTile(svc, index) {
   row.appendChild(sr);
 
   const name = el("span", "svc-name", svc.name);
+  // Most guests are LXCs, so only the exception is marked.
+  if (svc.kind === "vm") name.appendChild(el("span", "svc-kind", "VM"));
   row.appendChild(name);
 
   const readouts = {};
@@ -627,7 +629,13 @@ function renderStatus(services, nodes) {
     let tile = tiles.get(svc.id);
     if (!tile) {
       tile = buildTile(svc, index);
+      tile.node = svc.node;
       tiles.set(svc.id, tile);
+      gridForNode(svc.node, nodes).appendChild(tile.card);
+    } else if (tile.node !== svc.node) {
+      // Node assignment now comes from Proxmox, so a guest that migrates moves
+      // to its new node's group instead of staying where it was first drawn.
+      tile.node = svc.node;
       gridForNode(svc.node, nodes).appendChild(tile.card);
     }
     tile.card.className = "svc-row status-" + svc.status;
@@ -657,16 +665,353 @@ function renderStatus(services, nodes) {
   summary.hidden = false;
 }
 
+// ---- homelab dashboard ----
+//
+// Cluster, internet, clients, local traffic and DNS panels, mirroring the
+// owner's Homarr board. Everything here comes from /api/status, which builds
+// each field explicitly server-side; nothing in these panels is an address.
+//
+// Built once and updated in place each poll, like the service rows, so the
+// rings and bars ease between readings instead of redrawing.
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, String(v));
+  return node;
+}
+
+const fmt = {
+  pct: (v) => (v == null ? "–" : (v >= 10 ? Math.round(v) : v.toFixed(1)) + "%"),
+  mbps: (bps) => (bps == null ? "–" : (bps / 1e6 >= 100 ? Math.round(bps / 1e6) : (bps / 1e6).toFixed(1))),
+  gb: (b) => (b == null ? "–" : Math.round(b / 1073741824)),
+  tb: (b) => (b == null ? "–" : (b / 1e12).toFixed(1)),
+  count: (n) =>
+    n == null ? "–"
+    : n >= 1e6 ? (n / 1e6).toFixed(1) + "M"
+    : n >= 1e3 ? (n / 1e3).toFixed(1) + "k"
+    : String(n),
+  uptime: (s) => {
+    if (s == null) return "–";
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600);
+    return d ? d + "d " + h + "h" : h + "h " + Math.floor((s % 3600) / 60) + "m";
+  },
+};
+
+// The short name after "Node 1 — ", so the cluster panel reads "proxmox 2".
+const nodeShortName = (label) => String(label).split("—").pop().trim();
+
+function makeRing(kind, label) {
+  const wrap = el("div", "ring ring--" + kind);
+  wrap.setAttribute("role", "img");
+  const svg = svgEl("svg", { viewBox: "0 0 44 44", "aria-hidden": "true" });
+  svg.appendChild(svgEl("circle", { class: "ring-track", cx: 22, cy: 22, r: 18, pathLength: 100 }));
+  const arc = svgEl("circle", { class: "ring-arc", cx: 22, cy: 22, r: 18, pathLength: 100 });
+  svg.appendChild(arc);
+  wrap.appendChild(svg);
+  const mid = el("div", "ring-mid");
+  const value = el("span", "ring-value", "–");
+  mid.append(value, el("span", "ring-label", label));
+  wrap.appendChild(mid);
+  return {
+    wrap,
+    set(p) {
+      const v = p == null ? 0 : Math.max(0, Math.min(100, p));
+      arc.style.strokeDasharray = v + " 100";
+      value.textContent = fmt.pct(p);
+      wrap.setAttribute("aria-label", label + " " + fmt.pct(p));
+    },
+  };
+}
+
+function makeCard(cls, title) {
+  const card = el("article", "dash-card glass " + cls);
+  const head = el("header", "dash-head");
+  head.appendChild(el("h3", "dash-title", title));
+  const aside = el("div", "dash-aside");
+  head.appendChild(aside);
+  card.appendChild(head);
+  return { card, head, aside };
+}
+
+// A labelled "<n> online · <n> offline" chip for the cluster footer.
+function makeTally(label) {
+  const chip = el("div", "dash-tally");
+  chip.appendChild(el("span", "dash-tally-label", label));
+  const on = el("span", "dash-tally-on");
+  const off = el("span", "dash-tally-off");
+  chip.append(on, off);
+  return {
+    chip,
+    set(t) {
+      on.textContent = (t ? t.online : "–") + " online";
+      off.textContent = (t ? t.offline : "–") + " offline";
+      chip.classList.toggle("has-offline", !!(t && t.offline));
+    },
+  };
+}
+
+// Signal-quality bands for the 5G (NR) readings, coarse on purpose.
+function quality(metric, v) {
+  if (v == null) return "";
+  const t = { rsrp: [-90, -105], sinr: [13, 0], rsrq: [-10, -15] }[metric];
+  return v >= t[0] ? "q-good" : v >= t[1] ? "q-fair" : "q-poor";
+}
+
+const dashRefs = {};
+
+function buildDash(root, nodes) {
+  // ---- cluster ----
+  const c = makeCard("dash-cluster", "Cluster");
+  dashRefs.clusterUp = el("span", "dash-chip dash-chip--up");
+  c.aside.appendChild(dashRefs.clusterUp);
+  const grid = el("div", "cluster-grid");
+  dashRefs.nodes = new Map();
+  for (const n of nodes) {
+    if (n.cpu == null && n.mem == null) continue; // a config-only node has no stats
+    const col = el("div", "cluster-node");
+    col.appendChild(el("h4", "cluster-node-name", nodeShortName(n.label)));
+    const rings = el("div", "cluster-rings");
+    const cpu = makeRing("cpu", "CPU");
+    const ram = makeRing("ram", "RAM");
+    rings.append(cpu.wrap, ram.wrap);
+    col.appendChild(rings);
+    const foot = el("p", "cluster-node-foot");
+    col.appendChild(foot);
+    grid.appendChild(col);
+    dashRefs.nodes.set(n.id, { col, cpu, ram, foot });
+  }
+  const poolCol = el("div", "cluster-node cluster-pool");
+  dashRefs.poolName = el("h4", "cluster-node-name");
+  poolCol.appendChild(dashRefs.poolName);
+  dashRefs.pool = makeRing("pool", "ZFS");
+  const poolRings = el("div", "cluster-rings");
+  poolRings.appendChild(dashRefs.pool.wrap);
+  poolCol.appendChild(poolRings);
+  dashRefs.poolFoot = el("p", "cluster-node-foot");
+  poolCol.appendChild(dashRefs.poolFoot);
+  grid.appendChild(poolCol);
+  dashRefs.poolCol = poolCol;
+  c.card.appendChild(grid);
+  const tallies = el("div", "dash-tallies");
+  dashRefs.vms = makeTally("VMs");
+  dashRefs.lxcs = makeTally("LXCs");
+  dashRefs.storage = makeTally("Storage");
+  tallies.append(dashRefs.vms.chip, dashRefs.lxcs.chip, dashRefs.storage.chip);
+  c.card.appendChild(tallies);
+  dashRefs.clusterCard = c.card;
+  root.appendChild(c.card);
+
+  // ---- internet ----
+  const i = makeCard("dash-internet", "Internet");
+  dashRefs.tech = el("span", "dash-badge");
+  dashRefs.bars = el("span", "signal-bars");
+  dashRefs.bars.setAttribute("role", "img");
+  for (let b = 1; b <= 5; b++) dashRefs.bars.appendChild(el("i"));
+  dashRefs.netDot = el("span", "dash-dot");
+  i.aside.append(dashRefs.tech, dashRefs.bars, dashRefs.netDot);
+  const speed = el("p", "dash-speed");
+  dashRefs.down = el("span", "dash-big");
+  dashRefs.up = el("span", "dash-big");
+  speed.append(el("span", "dash-arrow dash-arrow--down", "↓"), dashRefs.down,
+               el("span", "dash-arrow dash-arrow--up", "↑"), dashRefs.up,
+               el("span", "dash-unit", "Mbps"));
+  i.card.appendChild(speed);
+  const sig = el("dl", "dash-signal");
+  dashRefs.sig = {};
+  for (const [key, label, unit] of [["rsrp", "RSRP", "dBm"], ["sinr", "SINR", "dB"], ["rsrq", "RSRQ", "dB"]]) {
+    const cell = el("div", "dash-signal-cell");
+    cell.appendChild(el("dt", "", label));
+    const dd = el("dd");
+    const val = el("span", "dash-signal-value");
+    dd.append(val, el("span", "dash-unit", unit));
+    cell.appendChild(dd);
+    sig.appendChild(cell);
+    dashRefs.sig[key] = val;
+  }
+  dashRefs.sigRow = sig;
+  i.card.appendChild(sig);
+  dashRefs.netFoot = el("p", "dash-foot");
+  i.card.appendChild(dashRefs.netFoot);
+  dashRefs.internetCard = i.card;
+  root.appendChild(i.card);
+
+  // ---- clients ----
+  const k = makeCard("dash-clients", "Clients");
+  dashRefs.clients = el("span", "dash-total");
+  k.aside.appendChild(dashRefs.clients);
+  const split = el("div", "dash-split");
+  dashRefs.wifiBar = el("span", "dash-split-wifi");
+  dashRefs.wiredBar = el("span", "dash-split-wired");
+  split.append(dashRefs.wifiBar, dashRefs.wiredBar);
+  k.card.appendChild(split);
+  const legend = el("p", "dash-legend");
+  dashRefs.wifiCount = el("strong");
+  dashRefs.wiredCount = el("strong");
+  const l1 = el("span", "dash-legend-item dash-legend-item--wifi", "Wi-Fi ");
+  l1.appendChild(dashRefs.wifiCount);
+  const l2 = el("span", "dash-legend-item dash-legend-item--wired", "Wired ");
+  l2.appendChild(dashRefs.wiredCount);
+  legend.append(l1, l2);
+  k.card.appendChild(legend);
+  dashRefs.gear = el("p", "dash-foot");
+  k.card.appendChild(dashRefs.gear);
+  dashRefs.clientsCard = k.card;
+  root.appendChild(k.card);
+
+  // ---- local traffic ----
+  const t = makeCard("dash-traffic", "Local traffic");
+  dashRefs.localTotal = el("span", "dash-total");
+  t.aside.appendChild(dashRefs.localTotal);
+  const spark = svgEl("svg", { class: "spark", viewBox: "0 0 300 56", preserveAspectRatio: "none", "aria-hidden": "true" });
+  dashRefs.sparkFill = svgEl("path", { class: "spark-fill" });
+  dashRefs.sparkLine = svgEl("path", { class: "spark-line" });
+  spark.append(dashRefs.sparkFill, dashRefs.sparkLine);
+  t.card.appendChild(spark);
+  // Two separate items so each wraps as a unit, never mid-reading.
+  const localFoot = el("p", "dash-legend");
+  dashRefs.wiredLine = el("span", "dash-nowrap");
+  dashRefs.wifiLine = el("span", "dash-nowrap");
+  localFoot.append(dashRefs.wiredLine, dashRefs.wifiLine);
+  t.card.appendChild(localFoot);
+  dashRefs.trafficCard = t.card;
+  root.appendChild(t.card);
+
+  // ---- pi-hole ----
+  const p = makeCard("dash-dns", "Pi-hole");
+  dashRefs.blockedPct = el("span", "dash-total");
+  p.aside.appendChild(dashRefs.blockedPct);
+  const bar = el("div", "dash-bar");
+  dashRefs.blockedBar = el("span");
+  bar.appendChild(dashRefs.blockedBar);
+  p.card.appendChild(bar);
+  dashRefs.dnsLine = el("p", "dash-legend");
+  p.card.appendChild(dashRefs.dnsLine);
+  dashRefs.dnsFoot = el("p", "dash-foot");
+  p.card.appendChild(dashRefs.dnsFoot);
+  dashRefs.dnsCard = p.card;
+  root.appendChild(p.card);
+}
+
+function sparkPaths(values) {
+  if (!values || values.length < 2) return ["", ""];
+  const W = 300, H = 56, max = Math.max(...values, 1);
+  const step = W / (values.length - 1);
+  const pts = values.map((v, i) => [i * step, H - 2 - (v / max) * (H - 6)]);
+  const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  return [line, line + " L" + W + " " + H + " L0 " + H + " Z"];
+}
+
+function renderDash(json) {
+  const root = document.getElementById("lab-dash");
+  if (!root) return;
+  const { cluster, network, dns } = json;
+  if (!cluster && !network && !dns) {
+    root.hidden = true; // no Homarr token on the server: list only
+    return;
+  }
+  if (!dashRefs.built) {
+    buildDash(root, json.nodes || []);
+    dashRefs.built = true;
+  }
+  root.hidden = false;
+
+  // cluster
+  dashRefs.clusterCard.hidden = !cluster;
+  if (cluster) {
+    dashRefs.clusterUp.textContent = "Up " + fmt.uptime(cluster.uptime);
+    for (const n of json.nodes || []) {
+      const r = dashRefs.nodes.get(n.id);
+      if (!r) continue;
+      r.cpu.set(n.cpu);
+      r.ram.set(n.mem);
+      // Two lines: a 124px column cannot hold "72 cores · 149 / 252 GB", and
+      // on one line the neighbouring footers ran into each other.
+      r.foot.textContent = (n.cores ?? "–") + " cores\n" + fmt.gb(n.memUsed) + " / " + fmt.gb(n.memTotal) + " GB";
+      r.col.classList.toggle("is-offline", n.online === false);
+    }
+    dashRefs.poolCol.hidden = !cluster.pool;
+    if (cluster.pool) {
+      dashRefs.poolName.textContent = cluster.pool.label;
+      dashRefs.pool.set(cluster.pool.pct);
+      dashRefs.poolFoot.textContent = fmt.tb(cluster.pool.used) + " / " + fmt.tb(cluster.pool.total) + " TB";
+    }
+    dashRefs.vms.set(cluster.vms);
+    dashRefs.lxcs.set(cluster.lxcs);
+    dashRefs.storage.set(cluster.storage);
+  }
+
+  // internet, clients, traffic all come from the UniFi reading
+  for (const card of [dashRefs.internetCard, dashRefs.clientsCard, dashRefs.trafficCard]) card.hidden = !network;
+  if (network) {
+    const cell = network.cellular;
+    dashRefs.tech.hidden = !cell || !cell.tech;
+    if (cell && cell.tech) dashRefs.tech.textContent = cell.tech + (cell.tech === "5G" ? (cell.standalone ? " SA" : " NSA") : "");
+    dashRefs.bars.hidden = !cell || cell.bars == null;
+    if (cell && cell.bars != null) {
+      [...dashRefs.bars.children].forEach((b, idx) => b.classList.toggle("on", idx < cell.bars));
+      dashRefs.bars.setAttribute("aria-label", "Signal " + cell.bars + " of 5");
+    }
+    dashRefs.netDot.className = "dash-dot " + (network.online ? "is-up" : "is-down");
+    dashRefs.netDot.title = network.online ? "Internet up" : "Internet down";
+    dashRefs.down.textContent = fmt.mbps(network.downBps);
+    dashRefs.up.textContent = fmt.mbps(network.upBps);
+    dashRefs.sigRow.hidden = !cell;
+    if (cell) {
+      for (const key of ["rsrp", "sinr", "rsrq"]) {
+        const v = cell[key];
+        dashRefs.sig[key].textContent = v == null ? "–" : String(Math.round(v));
+        dashRefs.sig[key].className = "dash-signal-value " + quality(key, v);
+      }
+    }
+    const bits = [];
+    if (network.latencyMs != null) bits.push(network.latencyMs + " ms ping");
+    if (network.latencyAvgMs != null) bits.push(network.latencyAvgMs + " ms avg");
+    if (network.availability != null) bits.push(fmt.pct(network.availability) + " up (24h)");
+    dashRefs.netFoot.textContent = bits.join(" · ");
+
+    const wifi = network.wifiClients || 0, wired = network.wiredClients || 0;
+    dashRefs.clients.textContent = network.clients ?? wifi + wired;
+    const sum = wifi + wired || 1;
+    dashRefs.wifiBar.style.flexGrow = String(wifi / sum);
+    dashRefs.wiredBar.style.flexGrow = String(wired / sum);
+    dashRefs.wifiCount.textContent = String(wifi);
+    dashRefs.wiredCount.textContent = String(wired);
+    dashRefs.gear.textContent =
+      (network.accessPoints ?? "–") + " access points · " + (network.switches ?? "–") + " switches";
+
+    const L = network.local || {};
+    dashRefs.localTotal.replaceChildren(fmt.mbps(L.totalBps) + " ", el("span", "dash-unit", "Mbps"));
+    const [line, fill] = sparkPaths(L.history);
+    dashRefs.sparkLine.setAttribute("d", line);
+    dashRefs.sparkFill.setAttribute("d", fill);
+    dashRefs.wiredLine.textContent = "Wired ↓ " + fmt.mbps(L.wiredDownBps) + " ↑ " + fmt.mbps(L.wiredUpBps);
+    dashRefs.wifiLine.textContent = "Wi-Fi ↓ " + fmt.mbps(L.wifiDownBps) + " ↑ " + fmt.mbps(L.wifiUpBps);
+  }
+
+  // dns
+  dashRefs.dnsCard.hidden = !dns;
+  if (dns) {
+    dashRefs.blockedPct.replaceChildren(fmt.pct(dns.percentBlocked) + " ", el("span", "dash-unit", "blocked"));
+    dashRefs.blockedBar.style.width = Math.min(100, Math.max(1, dns.percentBlocked || 0)) + "%";
+    dashRefs.dnsLine.textContent = fmt.count(dns.queries) + " queries · " + fmt.count(dns.blocked) + " blocked";
+    dashRefs.dnsFoot.textContent = (dns.clients ?? "–") + " clients · " + fmt.count(dns.blocklist) + " domains on the blocklist";
+  }
+}
+
 async function updateStatus() {
   const meta = document.getElementById("status-meta");
   try {
     const res = await fetch("/api/status");
     const json = await res.json();
     renderStatus(json.services, json.nodes || []);
+    try { renderDash(json); } catch (err) { console.error("dashboard render failed", err); }
     // Report when services were last actually checked — generatedAt would
     // always read "0s ago".
     const stamps = json.services.map((s) => s.lastChecked).filter(Boolean).sort();
-    meta.textContent = "checked " + relativeTime(stamps[stamps.length - 1]);
+    meta.textContent =
+      (json.source === "proxmox" ? "live from Proxmox · " : "") +
+      "checked " + relativeTime(stamps[stamps.length - 1]);
   } catch {
     // Leave already-rendered tiles alone; one failed poll shouldn't discard
     // good data. Only the first-load placeholder gets replaced.

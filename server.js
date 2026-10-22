@@ -223,7 +223,9 @@ async function runChecks() {
   if (checksRunning) return;
   checksRunning = true;
   try {
-    const queue = [...config.services];
+    // An entry with no `target` is a label-only binding (it renames or re-homes
+    // a Proxmox guest) and has nothing to check.
+    const queue = config.services.filter((svc) => svc.target);
     const workers = Array.from(
       { length: Math.min(CHECK_CONCURRENCY, queue.length) },
       async () => {
@@ -238,6 +240,352 @@ async function runChecks() {
 
 runChecks();
 setInterval(runChecks, CHECK_INTERVAL_MS);
+
+// ---------- Proxmox inventory, via Homarr ----------
+//
+// The homelab list used to be hand-maintained here in config.json and it
+// drifted: it was missing four guests, and it still listed "Node 3" as a
+// Windows box whose RDP address had gone dead — the machine is now VM 201 on
+// proxmox2 and had been up for weeks while the site reported it down. The
+// authoritative inventory is the Proxmox cluster itself, reached through
+// Homarr 2.0's integration proxy so this site never holds Proxmox credentials
+// of its own.
+//
+// SECURITY — read before touching homarrProxmox(). That proxy forwards ANY
+// method (POST, PUT, DELETE) to the saved Proxmox integration with Homarr's
+// stored credentials, so a leaked token, or a visitor able to influence the
+// path or method, could stop or destroy guests. Therefore:
+//   * the token comes only from the environment, never config.json (which is
+//     committed to a public repo);
+//   * the method is the literal "GET";
+//   * every path is a constant in PX_PATHS — nothing from an incoming request
+//     ever reaches this function.
+//
+// Proxmox state complements the health checks rather than replacing them: a
+// guest with its own check reports that check (real app health and latency),
+// and every other guest reports its Proxmox running state. Either way a guest
+// Proxmox says is stopped is down — the check can be a minute stale, Proxmox
+// is not.
+
+const HOMARR_URL = String(process.env.HOMARR_URL || config.homarr?.url || "").replace(/\/+$/, "");
+const HOMARR_TOKEN = process.env.HOMARR_TOKEN || "";
+
+// The ONLY upstream calls this site makes through Homarr. Integration kinds
+// and paths are constants; homarrGet() refuses anything not in this table.
+const HOMARR_CALLS = Object.freeze({
+  pxNodes: { kind: "proxmox", path: "/api2/json/nodes" },
+  pxGuests: { kind: "proxmox", path: "/api2/json/cluster/resources?type=vm" },
+  pxStorage: { kind: "proxmox", path: "/api2/json/cluster/resources?type=storage" },
+  unifiHealth: { kind: "unifiController", path: "/proxy/network/api/s/default/stat/health" },
+  unifiDevices: { kind: "unifiController", path: "/proxy/network/api/s/default/stat/device" },
+  piholeSummary: { kind: "piHole", path: "/api/stats/summary" },
+});
+let pxInventory = null; // last GOOD inventory; a failed refresh keeps it
+let pxRunning = false;
+
+async function homarrGet(callName) {
+  const call = HOMARR_CALLS[callName];
+  if (!call) throw new Error("homarrGet: unknown call " + callName);
+  const res = await fetch(HOMARR_URL + "/api/integrations/request", {
+    method: "POST",
+    headers: { ApiKey: HOMARR_TOKEN, "Content-Type": "application/json" },
+    body: JSON.stringify({ integrationKind: call.kind, method: "GET", path: call.path }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) throw new Error("homarr HTTP " + res.status);
+  const env = await res.json();
+  // Homarr answers 200 even when the upstream call failed; the real outcome
+  // is in ok/status.
+  if (!env.ok) throw new Error(call.kind + " HTTP " + env.status);
+  if (!env.data || typeof env.data !== "object") throw new Error(call.kind + ": unexpected payload");
+  return env.data; // the raw upstream JSON body
+}
+
+// Proxmox and UniFi both wrap their results as { data: [...] }.
+async function homarrList(callName) {
+  const body = await homarrGet(callName);
+  if (!Array.isArray(body.data)) throw new Error(callName + ": expected a list");
+  return body.data;
+}
+
+const finite = (v) => {
+  const n = typeof v === "string" ? Number(v) : v;
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+};
+
+const slugOf = (s) =>
+  String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const normName = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+// Guests never shown. Proxmox itself returned CT 106's name as the literal
+// string "[REDACTED]"; whatever it really is, it is not ours to publish.
+function isHiddenGuest(name) {
+  if (/\[redacted\]/i.test(name)) return true;
+  return (config.homelab?.hidden ?? []).some((h) => normName(h) === normName(name));
+}
+
+// A config entry binds to a guest by an explicit `guest` name, or by its id or
+// display name matching the guest name once punctuation is ignored.
+function serviceForGuest(guest) {
+  const n = normName(guest.name);
+  return (
+    config.services.find((s) => s.guest && normName(s.guest) === n) ||
+    config.services.find((s) => !s.guest && (normName(s.id) === n || normName(s.name) === n)) ||
+    null
+  );
+}
+
+function nodeIdFor(pxNode) {
+  const mapped = (config.nodes ?? []).find((n) => n.proxmox === pxNode);
+  return mapped ? mapped.id : "px-" + slugOf(pxNode);
+}
+
+const pct = (part, whole) =>
+  whole > 0 ? Math.round((part / whole) * 1000) / 10 : null;
+
+async function refreshProxmox() {
+  if (!HOMARR_URL || !HOMARR_TOKEN || pxRunning) return;
+  pxRunning = true;
+  try {
+    const [nodes, guests, storage] = await Promise.all([
+      homarrList("pxNodes"),
+      homarrList("pxGuests"),
+      homarrList("pxStorage"),
+    ]);
+    // Keep only what gets rendered. vmid is retained for ordering but never
+    // sent; ssl_fingerprint, tags, storage paths and per-guest disk/network
+    // counters are dropped here and never reach the response builder.
+    const num = finite;
+
+    // Online/offline tallies count EVERY non-template guest, hidden ones
+    // included — a count reveals nothing, and it should match Homarr's.
+    const tally = { vm: { online: 0, offline: 0 }, lxc: { online: 0, offline: 0 } };
+    for (const g of guests) {
+      if (g.template) continue;
+      const t = g.type === "qemu" ? tally.vm : tally.lxc;
+      if (g.status === "running") t.online++; else t.offline++;
+    }
+    const storeTally = { online: 0, offline: 0 };
+    for (const s of storage) {
+      if (s.status === "available") storeTally.online++; else storeTally.offline++;
+    }
+    // The featured pool: config.homelab.pool names a storage id; otherwise the
+    // largest ZFS pool. Only its usage numbers leave this function.
+    const poolId = config.homelab?.pool?.storage;
+    const pools = storage.filter((s) => (poolId ? s.storage === poolId : s.plugintype === "zfspool"));
+    const pool = pools.sort((a, b) => (b.maxdisk || 0) - (a.maxdisk || 0))[0];
+
+    pxInventory = {
+      at: new Date().toISOString(),
+      tally,
+      storage: storeTally,
+      pool: pool
+        ? {
+            label: config.homelab?.pool?.label || "Storage pool",
+            used: num(pool.disk),
+            total: num(pool.maxdisk),
+            pct: pct(pool.disk, pool.maxdisk),
+          }
+        : null,
+      nodes: nodes.map((n) => ({
+        node: String(n.node),
+        online: n.status === "online",
+        cpu: num(n.cpu) === null ? null : Math.round(n.cpu * 1000) / 10,
+        cores: num(n.maxcpu),
+        mem: pct(n.mem, n.maxmem),
+        memUsed: num(n.mem),
+        memTotal: num(n.maxmem),
+        disk: pct(n.disk, n.maxdisk),
+        diskUsed: num(n.disk),
+        diskTotal: num(n.maxdisk),
+        uptime: num(n.uptime),
+      })),
+      guests: guests
+        .filter((g) => !g.template && g.name && !isHiddenGuest(g.name))
+        .map((g) => ({
+          vmid: Number(g.vmid),
+          name: String(g.name),
+          node: String(g.node),
+          kind: g.type === "qemu" ? "vm" : "lxc",
+          state: String(g.status),
+        }))
+        .sort((a, b) => a.vmid - b.vmid),
+    };
+    // Guests with no check of their own get one sample per round from their
+    // Proxmox state, so they build up 24h/30d uptime like everything else.
+    for (const g of pxInventory.guests) {
+      if (!serviceForGuest(g)?.target) {
+        recordResult(serviceForGuest(g)?.id ?? slugOf(g.name), g.state === "running", null);
+      }
+    }
+  } catch (err) {
+    console.error("proxmox inventory failed (keeping last good):", err.message);
+  } finally {
+    pxRunning = false;
+  }
+}
+
+// ---------- network health (UniFi, via Homarr) ----------
+//
+// stat/health is a deliberately mixed bag, and most of it must NOT go public.
+// It carries the public WAN IP, the gateway/netmask/DNS servers, the gateway
+// MAC, its firmware version (an exact version is a fingerprint for known
+// CVEs), the ISP and ASN, VPN state — and the gateway's configured name, which
+// identifies the organisation whose network this is. None of those are read
+// below. Only latency, availability, throughput and aggregate counts are.
+//
+// WAN2 is a failover link that has been down for weeks; reporting it would put
+// a permanent red light on a healthy connection, so only the primary WAN is
+// read.
+let netHealth = null; // last GOOD reading
+let netRunning = false;
+const NET_INTERVAL_MS = 30_000;
+const TRAFFIC_SAMPLES = 60; // 30 minutes at NET_INTERVAL_MS
+const trafficHistory = []; // total local bits/s, oldest first
+
+async function refreshNetwork() {
+  if (!HOMARR_URL || !HOMARR_TOKEN || netRunning) return;
+  netRunning = true;
+  try {
+    const subs = await homarrList("unifiHealth");
+    const sub = (name) => subs.find((s) => s && s.subsystem === name) || {};
+    const wan = sub("wan"), www = sub("www"), wlan = sub("wlan"), lan = sub("lan");
+    const num = finite;
+    const wan1 = wan.uptime_stats?.WAN ?? {};
+    const gw = wan["gw_system-stats"] ?? {};
+    const rate = (v) => (num(v) === null ? null : Math.round(num(v) * 8)); // bytes/s -> bits/s
+
+    // Direction: on the WAN, rx is download and tx is upload. On wlan/lan the
+    // access points and switches TRANSMIT to clients, so tx is the clients'
+    // download. This agrees with Homarr's own widget for the same readings.
+    const local = {
+      wiredDownBps: rate(lan["tx_bytes-r"]),
+      wiredUpBps: rate(lan["rx_bytes-r"]),
+      wifiDownBps: rate(wlan["tx_bytes-r"]),
+      wifiUpBps: rate(wlan["rx_bytes-r"]),
+    };
+    local.totalBps = Object.values(local).reduce((a, b) => a + (b || 0), 0);
+    trafficHistory.push(local.totalBps);
+    while (trafficHistory.length > TRAFFIC_SAMPLES) trafficHistory.shift();
+
+    netHealth = {
+      at: new Date().toISOString(),
+      online: www.status === "ok",
+      latencyMs: num(www.latency),
+      latencyAvgMs: num(wan1.latency_average),
+      availability: num(wan1.availability),
+      internetUptime: num(www.uptime),
+      downBps: rate(wan["rx_bytes-r"]),
+      upBps: rate(wan["tx_bytes-r"]),
+      clients: num(wan.num_sta),
+      wifiClients: num(wlan.num_user),
+      wiredClients: num(lan.num_user),
+      accessPoints: num(wlan.num_ap),
+      switches: num(lan.num_sw),
+      gatewayCpu: num(gw.cpu),
+      gatewayMem: num(gw.mem),
+      local,
+    };
+  } catch (err) {
+    console.error("unifi health failed (keeping last good):", err.message);
+  } finally {
+    netRunning = false;
+  }
+}
+
+// ---------- cellular signal (U5G Outdoor, via UniFi) ----------
+//
+// The link is a UniFi U5G Outdoor CPE. Its device record is the most sensitive
+// payload anywhere on this site: alongside the radio metrics it holds the
+// IMEI, the eSIM EID, SIM details, a geo_info block with a STREET ADDRESS, the
+// carrier/MCC/MNC, cell ID and PCI (which locate the serving tower), its own
+// IP settings, x_authkey and an SSH host-key fingerprint.
+//
+// Read below, by explicit path and nothing else: network mode, standalone or
+// not, signal bars, and RSRP/SINR/RSRQ. The owner asked for general link info
+// and specifically not the carrier, so bands and channels are left out too
+// (n71 alone identifies the carrier in the US).
+//
+// stat/device is ~400KB per call for the whole site's gear, and signal does
+// not change fast enough to matter, so this runs every two minutes rather than
+// with the 30s health poll.
+const CELL_INTERVAL_MS = 2 * 60_000;
+let cellular = null;
+let cellRunning = false;
+
+async function refreshCellular() {
+  if (!HOMARR_URL || !HOMARR_TOKEN || cellRunning) return;
+  cellRunning = true;
+  try {
+    const devices = await homarrList("unifiDevices");
+    const modem = devices.find((d) => d && d.type === "umbb");
+    const radio = modem?.mbb?.radio;
+    if (!radio) {
+      cellular = null;
+      return;
+    }
+    const num = finite;
+    // NR (5G) readings when the 5G leg is up, LTE otherwise. In NSA mode both
+    // legs exist; the NR one is what Homarr shows and what matters for speed.
+    const nr = num(radio.rsrp_nr) !== null;
+    cellular = {
+      tech: typeof radio.rat_mode_active === "string" ? radio.rat_mode_active.slice(0, 8) : null,
+      standalone: radio["5g_sa_mode"] === true,
+      bars: num(radio.signal),
+      signalPct: num(radio.signal_percent),
+      rsrp: num(nr ? radio.rsrp_nr : radio.rsrp),
+      sinr: num(nr ? radio.snr_nr : radio.snr),
+      rsrq: num(nr ? radio.rsrq_nr : radio.rsrq),
+      ready: modem.mbb.state === "ready",
+    };
+  } catch (err) {
+    console.error("cellular signal failed (keeping last good):", err.message);
+  } finally {
+    cellRunning = false;
+  }
+}
+
+// ---------- DNS filtering (Pi-hole, via Homarr) ----------
+//
+// Aggregates only. Never the query log, top domains or top clients — those
+// are a browsing history for everyone on the network.
+let dnsStats = null;
+let dnsRunning = false;
+
+async function refreshPihole() {
+  if (!HOMARR_URL || !HOMARR_TOKEN || dnsRunning) return;
+  dnsRunning = true;
+  try {
+    const s = await homarrGet("piholeSummary");
+    const num = finite;
+    dnsStats = {
+      queries: num(s.queries?.total),
+      blocked: num(s.queries?.blocked),
+      percentBlocked: num(s.queries?.percent_blocked) === null
+        ? null
+        : Math.round(s.queries.percent_blocked * 10) / 10,
+      clients: num(s.clients?.active),
+      blocklist: num(s.gravity?.domains_being_blocked),
+    };
+  } catch (err) {
+    console.error("pi-hole summary failed (keeping last good):", err.message);
+  } finally {
+    dnsRunning = false;
+  }
+}
+
+if (HOMARR_URL && HOMARR_TOKEN) {
+  refreshProxmox();
+  refreshNetwork();
+  refreshCellular();
+  refreshPihole();
+  setInterval(refreshProxmox, CHECK_INTERVAL_MS);
+  setInterval(refreshNetwork, NET_INTERVAL_MS);
+  setInterval(refreshCellular, CELL_INTERVAL_MS);
+  setInterval(refreshPihole, CHECK_INTERVAL_MS);
+} else {
+  console.warn("HOMARR_TOKEN not set — homelab list falls back to config.json only");
+}
 
 // ---------- GitHub contributions ----------
 //
@@ -558,26 +906,168 @@ app.get("/api/profile", async (req, res) => {
 
 // ---------- public API (sanitized — no internal hosts/ports/IPs) ----------
 
+// One row of the public list. Every field is explicitly chosen: `id`, `name`
+// and `node` are labels, `kind` is "lxc" | "vm" | null. `target`, the Homarr
+// URL, vmids and anything else address-like never appear.
+function statusRow(id, name, node, publicUrl, guest) {
+  const last = history[id]?.last;
+  let status = last ? (last.ok ? "up" : "down") : "unknown";
+  // Proxmox outranks a check here: the check can be a minute stale.
+  if (guest && guest.state !== "running") {
+    status = guest.state === "stopped" ? "down" : "unknown";
+  }
+  return {
+    id,
+    name,
+    node,
+    status,
+    latencyMs: status === "up" && last?.ok ? last.latencyMs : null,
+    lastChecked: last?.at ?? null,
+    uptime24h: uptime24h(id),
+    uptime30d: uptimeOverDays(id, RETAIN_DAYS),
+    publicUrl: publicUrl ?? null,
+    kind: guest ? guest.kind : null,
+  };
+}
+
 app.get("/api/status", (req, res) => {
-  // Every field here is explicitly chosen. `id`, `name` and `node` are labels,
-  // not addresses — `target` and anything derived from it never appears.
-  const out = config.services.map((svc) => {
-    const entry = history[svc.id];
-    const last = entry?.last;
-    return {
-      id: svc.id,
-      name: svc.name,
-      node: svc.node ?? null,
-      status: last ? (last.ok ? "up" : "down") : "unknown",
-      latencyMs: last?.ok ? last.latencyMs : null,
-      lastChecked: last?.at ?? null,
-      uptime24h: uptime24h(svc.id),
-      uptime30d: uptimeOverDays(svc.id, RETAIN_DAYS),
-      publicUrl: svc.publicUrl ?? null,
-    };
+  const rows = [];
+  const counts = new Map(); // node id -> guest count, for the group headers
+
+  if (pxInventory) {
+    // Pair every guest with the config entry that describes it, if any.
+    const guestFor = new Map();
+    const unbound = [];
+    for (const g of pxInventory.guests) {
+      const svc = serviceForGuest(g);
+      if (svc && !guestFor.has(svc.id)) guestFor.set(svc.id, g);
+      else unbound.push(g);
+    }
+    // Curated order first (config order), then anything Proxmox knows about
+    // that config does not, by vmid, then checks that are not cluster guests.
+    for (const svc of config.services) {
+      const g = guestFor.get(svc.id);
+      if (g) rows.push(statusRow(svc.id, svc.name, nodeIdFor(g.node), svc.publicUrl, g));
+    }
+    for (const g of unbound) rows.push(statusRow(slugOf(g.name), g.name, nodeIdFor(g.node), null, g));
+    for (const svc of config.services) {
+      if (!guestFor.has(svc.id) && svc.target) {
+        rows.push(statusRow(svc.id, svc.name, svc.node ?? null, svc.publicUrl, null));
+      }
+    }
+    for (const g of pxInventory.guests) {
+      const id = nodeIdFor(g.node);
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  } else {
+    // No Homarr token, or Proxmox unreachable since boot: config only.
+    for (const svc of config.services) {
+      if (svc.target) rows.push(statusRow(svc.id, svc.name, svc.node ?? null, svc.publicUrl, null));
+    }
+  }
+
+  const nodeRow = (id, label, px) => ({
+    id,
+    label,
+    online: px ? px.online : null,
+    cpu: px ? px.cpu : null,
+    cores: px ? px.cores : null,
+    mem: px ? px.mem : null,
+    memUsed: px ? px.memUsed : null,
+    memTotal: px ? px.memTotal : null,
+    uptime: px ? px.uptime : null,
+    guests: counts.get(id) ?? null,
   });
-  const nodes = (config.nodes ?? []).map((n) => ({ id: n.id, label: n.label }));
-  res.json({ nodes, services: out, generatedAt: new Date().toISOString() });
+  const nodes = (config.nodes ?? []).map((n) =>
+    nodeRow(n.id, n.label, pxInventory?.nodes.find((x) => x.node === n.proxmox)),
+  );
+  // A node Proxmox reports that config does not name yet still gets a group.
+  for (const px of pxInventory?.nodes ?? []) {
+    if (!(config.nodes ?? []).some((n) => n.proxmox === px.node)) {
+      nodes.push(nodeRow(nodeIdFor(px.node), px.node, px));
+    }
+  }
+
+  // Copied field by field, like everything else here: the refresh functions
+  // already discarded the dangerous parts, and this keeps it that way even if
+  // one of them later grows a field.
+  const cluster = pxInventory
+    ? {
+        uptime: Math.max(0, ...pxInventory.nodes.map((n) => n.uptime || 0)) || null,
+        vms: { online: pxInventory.tally.vm.online, offline: pxInventory.tally.vm.offline },
+        lxcs: { online: pxInventory.tally.lxc.online, offline: pxInventory.tally.lxc.offline },
+        storage: { online: pxInventory.storage.online, offline: pxInventory.storage.offline },
+        pool: pxInventory.pool
+          ? {
+              label: pxInventory.pool.label,
+              used: pxInventory.pool.used,
+              total: pxInventory.pool.total,
+              pct: pxInventory.pool.pct,
+            }
+          : null,
+      }
+    : null;
+
+  const n = netHealth;
+  const network = n
+    ? {
+        online: n.online,
+        latencyMs: n.latencyMs,
+        latencyAvgMs: n.latencyAvgMs,
+        availability: n.availability,
+        internetUptime: n.internetUptime,
+        downBps: n.downBps,
+        upBps: n.upBps,
+        clients: n.clients,
+        wifiClients: n.wifiClients,
+        wiredClients: n.wiredClients,
+        accessPoints: n.accessPoints,
+        switches: n.switches,
+        gatewayCpu: n.gatewayCpu,
+        gatewayMem: n.gatewayMem,
+        local: {
+          totalBps: n.local.totalBps,
+          wiredDownBps: n.local.wiredDownBps,
+          wiredUpBps: n.local.wiredUpBps,
+          wifiDownBps: n.local.wifiDownBps,
+          wifiUpBps: n.local.wifiUpBps,
+          history: trafficHistory.slice(),
+        },
+        cellular: cellular
+          ? {
+              tech: cellular.tech,
+              standalone: cellular.standalone,
+              bars: cellular.bars,
+              signalPct: cellular.signalPct,
+              rsrp: cellular.rsrp,
+              sinr: cellular.sinr,
+              rsrq: cellular.rsrq,
+              ready: cellular.ready,
+            }
+          : null,
+      }
+    : null;
+
+  const dns = dnsStats
+    ? {
+        queries: dnsStats.queries,
+        blocked: dnsStats.blocked,
+        percentBlocked: dnsStats.percentBlocked,
+        clients: dnsStats.clients,
+        blocklist: dnsStats.blocklist,
+      }
+    : null;
+
+  res.json({
+    nodes,
+    services: rows,
+    cluster,
+    network,
+    dns,
+    source: pxInventory ? "proxmox" : "config",
+    inventoryAt: pxInventory?.at ?? null,
+    generatedAt: new Date().toISOString(),
+  });
 });
 
 // ---------- social stats ----------

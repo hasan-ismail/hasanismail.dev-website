@@ -268,9 +268,16 @@
     </section>
 
     <section class="section section-lab" aria-label="My homelab">
+      <h2 class="section-title">Homelab</h2>
+
+      <!-- Live cluster, network and DNS panels. Built and filled by renderDash()
+           in app.js from /api/status; stays hidden if the server has no Homarr
+           token, so the page never shows an empty shell. -->
+      <div class="lab-dash" id="lab-dash" hidden></div>
+
       <details class="lab">
         <summary class="lab-summary">
-          <span class="lab-title">My homelab</span>
+          <span class="lab-title">Services</span>
           <span class="status-summary" id="status-summary" hidden></span>
         </summary>
         <div class="lab-body">

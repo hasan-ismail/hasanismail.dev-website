@@ -42,14 +42,37 @@ from `config.json`, or anything derived from it — hostname, IP, port, or
 path.** This is the entire reason the checker runs server-side. Do not
 compromise it for convenience.
 
+The same rule now covers everything read through Homarr (Proxmox, UniFi,
+Pi-hole) — see "Homelab data via Homarr" below. Those payloads carry far more
+than `config.json` ever did: the public WAN IP, MACs, the modem's IMEI and a
+street address among them.
+
 The response envelope is exactly:
 
 ```json
-{ "nodes": [ { "id", "label" } ],
+{ "nodes": [ { "id", "label", "online", "cpu", "cores", "mem", "memUsed",
+               "memTotal", "uptime", "guests" } ],
   "services": [ { "id", "name", "node", "status", "latencyMs", "lastChecked",
-                  "uptime24h", "uptime30d", "publicUrl" } ],
+                  "uptime24h", "uptime30d", "publicUrl", "kind" } ],
+  "cluster": { "uptime", "vms": {online, offline}, "lxcs": {…}, "storage": {…},
+               "pool": { "label", "used", "total", "pct" } } | null,
+  "network": { "online", "latencyMs", "latencyAvgMs", "availability",
+               "internetUptime", "downBps", "upBps", "clients", "wifiClients",
+               "wiredClients", "accessPoints", "switches", "gatewayCpu",
+               "gatewayMem",
+               "local": { "totalBps", "wiredDownBps", "wiredUpBps",
+                          "wifiDownBps", "wifiUpBps", "history": [bps…] },
+               "cellular": { "tech", "standalone", "bars", "signalPct",
+                             "rsrp", "sinr", "rsrq", "ready" } | null } | null,
+  "dns": { "queries", "blocked", "percentBlocked", "clients", "blocklist" } | null,
+  "source": "proxmox" | "config",
+  "inventoryAt": "<ISO timestamp>" | null,
   "generatedAt": "<ISO timestamp>" }
 ```
+
+Every one of those is a label, a count, a percentage, a rate or a timestamp.
+`cluster`, `network` and `dns` are `null` when the server has no Homarr token
+or has never reached Homarr since boot.
 
 - `status` is `"up"` | `"down"` | `"unknown"`.
 - `latencyMs` is `null` unless the last check succeeded.
@@ -59,6 +82,8 @@ The response envelope is exactly:
 - `id` is a config slug, not host data — it is safe to expose.
 - `node` / `nodes` are display labels ("Node 1 — proxmox"), not addresses.
 - `publicUrl` is an intentionally public link, or `null`.
+- `kind` is `"lxc"` | `"vm"` for Proxmox guests, `null` for a check that is
+  not a cluster guest. vmids are kept server-side for ordering and never sent.
 
 The handler builds this object field by field on purpose. Don't "simplify"
 it by spreading the config entry (`...svc`) into the response — that would
@@ -68,8 +93,8 @@ Any change that threads a `target` value into an API response or a file
 under `public/` is a bug, not a feature. Logging targets server-side is
 fine; sending them to a client is not.
 
-The only routes are `/api/status`, `/api/github`, `/api/profile` and the
-static mount on `public/`. Never add a static mount or a route that could
+The only routes are `/api/status`, `/api/github`, `/api/profile`,
+`/api/social` and the static mount on `public/`. Never add a static mount or a route that could
 serve `config.json`, `data/`, or the repo root.
 
 `/api/github` and `/api/profile` are both **server-side proxies of public
@@ -204,25 +229,137 @@ Scraping HTML is brittle by nature, so every extractor returns `null` on any
 surprise instead of throwing, and a `null` is indistinguishable from "not
 configured" to the client. Handles live in `config.social`.
 
+### Homelab data via Homarr — Proxmox, UniFi, Pi-hole
+
+The homelab used to be a hand-maintained list in `config.json`, and it rotted:
+it was missing four guests, and "Node 3" was still a Windows box whose RDP
+address had gone dead — that machine had become VM 201 on proxmox2 and had
+been up for weeks while the site reported it **down**. The inventory now comes
+from the cluster itself.
+
+**Transport.** Homarr 2.0's `POST /api/integrations/request` calls a saved
+integration with Homarr's own stored credentials, so this site holds no
+Proxmox, UniFi or Pi-hole credentials — only a Homarr API key.
+
+**That proxy is the most dangerous thing this server touches.** It forwards
+*any* method — POST, PUT, DELETE — to the saved integration. A leaked key, or
+a visitor able to influence the path or method, could stop or destroy guests
+or reconfigure the network. So:
+
+- `HOMARR_TOKEN` comes **only** from the environment (`/etc/hasanismail-site.env`
+  via the unit's `EnvironmentFile=`). Never `config.json` — this repo is public.
+- `homarrGet()` accepts only a name from the `HOMARR_CALLS` table. Every
+  integration kind and path in it is a constant; the method is the literal
+  `"GET"`. Nothing from an incoming request reaches it. Adding a call means
+  adding a row to that table, deliberately.
+- Every refresh function copies out the handful of fields it renders and drops
+  the rest of the payload on the spot; the response builder then copies those
+  field by field again.
+
+What is read, and on what cadence:
+
+| call | upstream | every |
+|---|---|---|
+| `pxNodes` | `/api2/json/nodes` | 60s |
+| `pxGuests` | `/api2/json/cluster/resources?type=vm` | 60s |
+| `pxStorage` | `/api2/json/cluster/resources?type=storage` | 60s |
+| `unifiHealth` | `/proxy/network/api/s/default/stat/health` | 30s (drives the traffic sparkline) |
+| `unifiDevices` | `/proxy/network/api/s/default/stat/device` | 2 min — ~400KB, and signal does not move faster than that matters |
+| `piholeSummary` | `/api/stats/summary` (Pi-hole v6) | 60s |
+
+**Deliberately withheld**, all of which is in those payloads:
+
+- Proxmox: `ssl_fingerprint`, vmids, tags, storage paths. Guests whose name is
+  in `config.homelab.hidden`, or whose name came back as `[REDACTED]` (CT 106 —
+  Homarr returned it that way; whatever it is, it is not ours to publish). The
+  VM/LXC **counts** do include hidden guests: a number reveals nothing and
+  should match Homarr's.
+- UniFi health: the public WAN IP, gateways, netmask, DNS servers, gateway MAC,
+  firmware version (an exact version is a CVE fingerprint), ISP and ASN, VPN
+  state — and `gw_name`, which names **the organisation whose network this
+  is**. WAN2 is also skipped: it is a failover link that has been down for
+  weeks, and reporting it would be a permanent red light on a healthy line.
+- U5G Outdoor CPE (`type: "umbb"` in stat/device): this is the most sensitive
+  record on the site. It holds the IMEI, eSIM EID, SIM details,
+  `geo_info.address` (a **street address**), carrier/MCC/MNC, cell ID and PCI
+  (which locate the serving tower), its IP settings, `x_authkey` and an SSH
+  host-key fingerprint. Read by explicit path: `rat_mode_active`,
+  `5g_sa_mode`, `signal`, `signal_percent`, and RSRP/SINR/RSRQ (NR values when
+  the 5G leg is up, LTE otherwise). The owner asked for general link info and
+  specifically **not** the carrier, so bands and channels are left out too —
+  n71 alone identifies the carrier in the US.
+- Pi-hole: aggregates only. Never the query log, top domains or top clients —
+  that is a browsing history for everyone on the network.
+
+**Traffic direction.** On the WAN, `rx` is download and `tx` upload. On
+`wlan`/`lan` the access points and switches *transmit* to clients, so `tx` is
+the clients' download. This agrees with Homarr's own widget for the same
+readings — check against it if you touch the mapping.
+
+**Status precedence.** A guest with its own check (a `config.json` entry with
+a `target`) reports that check: real app health and real latency. Every other
+guest reports its Proxmox running state, and gets one sample per round into
+`history` so it builds 24h/30d uptime like the rest. A guest Proxmox says is
+stopped is down regardless — the check can be a minute stale, Proxmox is not.
+
+**Binding config to guests.** A config entry pairs with a guest by an explicit
+`"guest": "<proxmox name>"`, or by its `id` or `name` matching the guest name
+once punctuation is ignored. An entry with **no `target`** is a label-only
+binding: it renames or re-homes a guest without checking it. Checks that are
+not cluster guests at all (Homarr's own box) still render under their
+configured node.
+
+**Nodes** map to Proxmox node names with a `proxmox` key on each
+`config.nodes` entry. A node Proxmox reports that config does not name still
+gets a group, labelled with its raw name.
+
+**Failure modes, both tested.** No token → the old config-only list, dashboard
+hidden. Homarr unreachable → each refresh logs and **keeps its last good
+reading**; if there has never been one since boot, same as no token. The page
+never shows an empty shell.
+
+**How the leak check is done now.** Comparing against `config.json` targets is
+no longer enough. Harvest every sensitive value from the *raw* upstream
+payloads — every IPv4 and MAC anywhere in them, plus the values of keys like
+`imei`, `eid`, `serial`, `address`, `x_authkey`, `ssl_fingerprint`, `gw_name`,
+`isp_name`, `wan_ip` — then assert none of them appear in `/api/*`, `/`,
+`app.js` or `style.css`, and that the token is in no file in the working tree.
+On the first run that was 584 values; zero appeared.
+
+**Key permissions.** The proxy needs "full integration access" to each
+integration it calls, and the first key was an admin key that can also write
+boards, apps and users. Give the site a dedicated Homarr user that can see
+only the Proxmox, UniFi and Pi-hole integrations, and rotate any key that has
+been pasted anywhere.
+
 ---
 
 ## Monitored services
 
 Edit `config.json` only — the frontend renders whatever the array
-contains, no code changes needed.
+contains, no code changes needed. With Homarr configured, every Proxmox guest
+appears automatically; `config.json` adds checks, names and order on top.
 
 ```json
 {
+  "homarr": { "url": "http://192.168.1.33:7575" },
+  "homelab": {
+    "hidden": ["guest-name-to-keep-off-the-site"],
+    "pool": { "storage": "media", "label": "Media pool" }
+  },
   "nodes": [
-    { "id": "node1", "label": "Node 1 — proxmox" }
+    { "id": "node1", "label": "Node 1 — proxmox", "proxmox": "proxmox" }
   ],
   "services": [
     { "id": "unique-slug", "name": "Display name", "node": "node1",
       "type": "http", "target": "http://192.168.1.X:PORT[/path]",
-      "publicUrl": "https://optional-public-link.example" }
+      "publicUrl": "https://optional-public-link.example" },
+    { "id": "pretty-name", "name": "Pretty Name", "guest": "ugly-ct-name" }
   ]
 }
 ```
+
+The token is **not** in this file and never may be.
 
 - `type: "http"` — GET with a 5s timeout. **Any status below 500 counts
   as up**, so a reachable-but-wrong path can read as a false green.
@@ -739,10 +876,35 @@ Details worth not rediscovering:
 - Lanyard has no banner and no "About Me". The bio lines in the profile card
   are static content, not a live feed.
 
-### Status cards — "My homelab"
+### Homelab section — dashboard, then the service list
 
-**Collapsed behind a `<details class="lab">`, closed by default.** Twenty-six
-tiles dominated the page; the owner asked for it tucked away. The live
+Two parts under one "Homelab" section title.
+
+**The dashboard (`#lab-dash`)** is always visible and mirrors the owner's own
+Homarr board: a full-width **Cluster** card (per-node CPU and RAM rings with
+cores and GB used/total, the featured ZFS pool ring, cluster uptime, and
+VMs / LXCs / Storage online-offline tallies), then **Internet** (live ↓/↑,
+"5G NSA" badge and signal bars, RSRP/SINR/RSRQ coloured by quality band,
+ping / 24h average / availability), **Clients** (Wi-Fi vs wired split bar,
+AP and switch counts), **Local traffic** (30-minute sparkline from a
+server-side ring buffer) and **Pi-hole** (percent blocked, queries, blocklist
+size). Two columns on desktop, one under 560px; the cluster grid is
+`auto-fit, minmax(124px, 1fr)`, which lands 4-across on desktop and 2×2 on a
+phone. Node footers are two lines on purpose — on one line the neighbouring
+footers ran into each other.
+
+`renderDash()` builds the DOM once and updates in place, like the service
+rows, so rings and bars ease between readings. It hides any card whose block
+is `null` and hides the whole dashboard when all three are.
+
+Measured with the glyph-mask rig across 69 text elements on each viewport:
+**0 below AA**, worst "5G NSA" badge at 5.57:1. The coloured figures use only
+the light `*-lt` tokens and `--amber`; the rings, bars and dots carry the hue.
+
+### Status cards — the service list
+
+**Collapsed behind a `<details class="lab">` titled "Services", closed by
+default.** Thirty rows dominated the page; the owner asked for it tucked away. The live
 `#status-summary` pill ("All services online and operational") sits on the *closed* summary row,
 so status stays glanceable without expanding — keep it there if you restyle
 this, that pill is the whole point of hiding the rest.
@@ -894,6 +1056,13 @@ npm start
 Then open <http://localhost:3300>. Checks run from wherever the process
 runs, so anything unreachable from your machine shows as "down" locally.
 
+For the live dashboard locally, pass the key in the environment for that one
+process — never write it into a file inside the repo:
+
+```bash
+HOMARR_TOKEN='<key>' npm start
+```
+
 ## Deployment target
 
 A **Proxmox LXC**: CT 124 on node 1 (`lxcpool`) — Debian 13, 2 vCPU /
@@ -914,7 +1083,14 @@ a remote script to bash as root.
 Re-running `install.sh` is the upgrade path: it pulls, reinstalls deps,
 and restarts the unit.
 
-The monitored services span **both** Proxmox nodes — Immich is CT 200 on
-node 2 (192.168.1.98), everything else is on node 1. Checks go over the
-LAN, so the split doesn't matter operationally, but it explains why the
-Immich target's IP is in a different range of the inventory.
+**Secrets** live in `/etc/hasanismail-site.env` (`HOMARR_TOKEN`, optionally
+`HOMARR_URL` and `GITHUB_TOKEN`), loaded by the unit's
+`EnvironmentFile=-/etc/hasanismail-site.env`. `install.sh` creates it
+root:root 0600 with a commented template **only if it is missing** — a re-run
+never overwrites a pasted key. systemd reads it as root before dropping to the
+service user, so that user never needs read access. After editing it:
+`systemctl restart hasanismail-site`.
+
+The cluster is **three** quorate Proxmox nodes — `proxmox`, `proxmox2` and
+`proxmox3` — and every check goes over the LAN. With Homarr configured the
+node a guest lives on comes from Proxmox, so a migration moves its row.

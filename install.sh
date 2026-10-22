@@ -78,6 +78,30 @@ npm install --omit=dev
 mkdir -p "$INSTALL_DIR/data"
 chown -R "$SERVICE":"$SERVICE" "$INSTALL_DIR/data"
 
+# Secrets file for the unit's EnvironmentFile=. Created once, root:root 0600,
+# and NEVER overwritten — a re-run of this script is the upgrade path and must
+# not wipe a token someone pasted in. The repo is public; the token never goes
+# in config.json.
+ENV_FILE="/etc/$SERVICE.env"
+if [ ! -f "$ENV_FILE" ]; then
+  umask 077
+  cat >"$ENV_FILE" <<'ENVTEMPLATE'
+# hasanismail-site secrets. Read by systemd as root; keep this file 0600.
+#
+# Homarr 2.0 API key, used server-side only to read Proxmox, UniFi and Pi-hole
+# through Homarr's integration proxy. Create it in Homarr under
+# Manage -> Tools -> API, ideally for a user that can see only those three
+# integrations. Leave empty to run with config.json checks alone.
+HOMARR_TOKEN=
+# Optional: overrides config.json "homarr.url".
+# HOMARR_URL=http://192.168.1.33:7575
+# Optional: raises the GitHub API ceiling from 60 to 5000 requests/hour.
+# GITHUB_TOKEN=
+ENVTEMPLATE
+  chmod 600 "$ENV_FILE"
+  chown root:root "$ENV_FILE"
+fi
+
 cp "$SERVICE.service" "/etc/systemd/system/$SERVICE.service"
 systemctl daemon-reload
 systemctl enable --now "$SERVICE"
@@ -90,10 +114,12 @@ cat <<'NOTE'
 Installed to /opt/hasanismail-site — service is running on :3300
 
 Still to do:
-  1. Confirm the service targets in config.json (internal IPs/ports).
-  2. Set DISCORD_USER_ID in public/app.js, and join discord.gg/lanyard once.
-  3. Point your Cloudflare Tunnel at this host's port 3300.
+  1. Put your Homarr API key in /etc/hasanismail-site.env (HOMARR_TOKEN=...)
+     to turn on the live cluster / network / Pi-hole panels.
+  2. Confirm the service targets in config.json (internal IPs/ports).
+  3. Set DISCORD_USER_ID in public/app.js, and join discord.gg/lanyard once.
+  4. Point your Cloudflare Tunnel at this host's port 3300.
 
-After editing either file:
+After editing any of those:
   systemctl restart hasanismail-site
 NOTE

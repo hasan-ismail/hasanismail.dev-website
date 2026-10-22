@@ -2422,3 +2422,288 @@ body {
   .link--split .link-title { font-size: 0.8rem; }
   .link-item a.link-half + a.link-half::before { top: 14%; bottom: 14%; }
 }
+
+/* ==========================================================================
+   HOMELAB DASHBOARD
+   Mirrors the owner's Homarr board: cluster rings, internet with 5G signal,
+   clients, local traffic and Pi-hole. Everything is filled from /api/status.
+
+   Colour discipline: hues live on rings, bars, dots and the light *-lt tokens
+   used for titles and small numbers. Body figures stay --ink / --ink-muted.
+   ========================================================================== */
+
+.section-lab .section-title { --accent: var(--teal-lt); }
+
+.lab-dash {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.dash-cluster { grid-column: 1 / -1; }
+@media (max-width: 560px) {
+  .lab-dash { grid-template-columns: minmax(0, 1fr); }
+}
+
+.dash-card {
+  min-width: 0;
+  padding: 14px 16px 15px;
+  border-radius: 18px;
+}
+.dash-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.dash-aside { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dash-title {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.dash-internet .dash-title { color: var(--teal-lt); }
+.dash-clients  .dash-title { color: var(--green-lt); }
+.dash-traffic  .dash-title { color: var(--violet-lt); }
+.dash-dns      .dash-title { color: var(--pink-lt); }
+
+.dash-unit {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.dash-total {
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.dash-foot {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+.dash-chip--up {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  color: var(--green-lt);
+}
+
+/* ---- rings ---- */
+.ring { position: relative; width: 58px; height: 58px; flex: 0 0 auto; }
+.ring svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-track { fill: none; stroke: rgb(var(--ink-rgb) / 0.12); stroke-width: 4.5; }
+.ring-arc {
+  fill: none;
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  stroke-dasharray: 0 100;
+  transition: stroke-dasharray 0.7s var(--ease-out-expo);
+}
+.ring--cpu  .ring-arc { stroke: var(--green-lt); }
+.ring--ram  .ring-arc { stroke: var(--amber); }
+.ring--pool .ring-arc { stroke: var(--cyan); }
+.ring-mid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  line-height: 1.1;
+}
+.ring-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ring-label {
+  font-size: 0.54rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+}
+
+/* ---- cluster ---- */
+.cluster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(124px, 1fr));
+  gap: 14px 10px;
+}
+.cluster-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.cluster-node.is-offline { opacity: 0.45; }
+.cluster-node-name {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--teal-lt);
+  white-space: nowrap;
+}
+.cluster-pool .cluster-node-name { color: var(--violet-lt); }
+.cluster-rings { display: flex; gap: 6px; }
+.cluster-node-foot {
+  margin: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.66rem;
+  color: var(--ink-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dash-tallies {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+.dash-tally {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 7px 11px;
+  border-radius: 12px;
+  background: rgb(var(--ink-rgb) / 0.05);
+  border: 1px solid var(--glass-border);
+  font-size: 0.74rem;
+}
+.dash-tally-label { margin-right: auto; font-weight: 700; color: var(--violet-lt); }
+.dash-tally-on  { font-family: 'JetBrains Mono', monospace; color: var(--green-lt); }
+.dash-tally-off { font-family: 'JetBrains Mono', monospace; color: var(--ink-muted); }
+.dash-tally.has-offline .dash-tally-off { color: #ffb3c0; }
+@media (max-width: 560px) {
+  .dash-tallies { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- internet ---- */
+.dash-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.64rem;
+  font-weight: 600;
+  color: var(--violet-lt);
+  background: rgb(var(--violet-lt-rgb) / 0.16);
+  border: 1px solid rgb(var(--violet-lt-rgb) / 0.4);
+  white-space: nowrap;
+}
+.signal-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+.signal-bars i { display: block; width: 3px; border-radius: 1px; background: rgb(var(--ink-rgb) / 0.18); }
+.signal-bars i:nth-child(1) { height: 30%; }
+.signal-bars i:nth-child(2) { height: 47%; }
+.signal-bars i:nth-child(3) { height: 64%; }
+.signal-bars i:nth-child(4) { height: 82%; }
+.signal-bars i:nth-child(5) { height: 100%; }
+.signal-bars i.on { background: var(--teal-lt); }
+.dash-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--unknown); }
+.dash-dot.is-up   { background: var(--up);   box-shadow: 0 0 0 3px var(--ring-up); }
+.dash-dot.is-down { background: var(--down); box-shadow: 0 0 0 3px var(--ring-down); }
+
+.dash-speed { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; margin: 2px 0 10px; }
+.dash-big {
+  margin-right: 10px;
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+}
+.dash-arrow { font-size: 1.1rem; font-weight: 700; }
+.dash-arrow--down { color: var(--teal-lt); }
+.dash-arrow--up   { color: var(--violet-lt); }
+
+.dash-signal { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; }
+.dash-signal-cell { display: flex; align-items: baseline; gap: 6px; }
+.dash-signal dt { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; color: var(--ink-muted); }
+.dash-signal dd { margin: 0; display: flex; align-items: baseline; gap: 3px; }
+.dash-signal-value { font-family: 'JetBrains Mono', monospace; font-size: 1rem; font-weight: 600; color: var(--ink); }
+.q-good { color: var(--green-lt); }
+.q-fair { color: var(--amber); }
+.q-poor { color: #ffb3c0; }
+
+/* ---- clients ---- */
+.dash-split { display: flex; gap: 4px; height: 10px; margin: 4px 0 11px; }
+.dash-split span { flex: 1 1 0; min-width: 6px; border-radius: 999px; transition: flex-grow 0.6s var(--ease-out-expo); }
+.dash-split-wifi  { background: var(--violet-lt); }
+.dash-split-wired { background: var(--green-lt); }
+.dash-legend {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+.dash-legend strong { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--ink); }
+.dash-legend-item::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: 1px;
+}
+.dash-legend-item--wifi::before  { background: var(--violet-lt); }
+.dash-legend-item--wired::before { background: var(--green-lt); }
+
+/* ---- local traffic ---- */
+.spark { display: block; width: 100%; height: 56px; margin: 2px 0 8px; overflow: visible; }
+.spark-line { fill: none; stroke: var(--violet-lt); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.spark-fill { fill: rgb(var(--violet-lt-rgb) / 0.14); stroke: none; }
+.dash-traffic .dash-legend { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; }
+
+/* ---- pi-hole ---- */
+.dash-bar {
+  height: 8px;
+  margin: 4px 0 11px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(var(--ink-rgb) / 0.1);
+}
+.dash-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #ff9aa8;
+  transition: width 0.6s var(--ease-out-expo);
+}
+
+/* ---- service rows: VM marker ---- */
+.svc-kind {
+  display: inline-block;
+  margin-inline-start: 7px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+  color: var(--violet-lt);
+  background: rgb(var(--violet-lt-rgb) / 0.14);
+  border: 1px solid rgb(var(--violet-lt-rgb) / 0.36);
+}
+
+/* Dashboard layout fixes after the first render. */
+.cluster-node-foot { white-space: pre-line; line-height: 1.45; }
+.dash-nowrap { white-space: nowrap; }
+.dash-legend strong { margin-inline-start: 4px; }
