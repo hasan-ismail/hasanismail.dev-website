@@ -294,7 +294,18 @@
       <h2 class="section-title">Message me</h2>
       <!-- Posts to /api/contact, which forwards to a Discord webhook along
            with the sender's IP, location and device details. -->
-      <form class="contact glass" id="contact-form" novalidate>
+      <!-- method/action are a fallback for when app.js is missing or stale
+           (Cloudflare holds it in browsers for up to 4h while this page is
+           always fresh). Without them a native submit is a GET that puts the
+           message in the URL. With them it is a POST that the server rejects
+           cleanly. app.js normally intercepts the submit. -->
+      <form class="contact glass" id="contact-form" method="post" action="/api/contact" novalidate>
+        <!-- Kept only for app.js cached from before the topic field was
+             removed: that version reads form.elements.topic.value and would
+             throw without it. The server ignores the value. Safe to delete
+             once that cache window has passed. -->
+        <input type="hidden" name="topic" value="">
+
         <div class="contact-field">
           <label class="contact-label" for="c-message">Message</label>
           <textarea class="contact-input contact-textarea" id="c-message" name="message"
