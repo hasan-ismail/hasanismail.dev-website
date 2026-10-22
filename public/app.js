@@ -510,18 +510,10 @@ function formatLatency(value) {
   return value === null || value === undefined ? "—" : Math.round(value) + " ms";
 }
 
-// Percent of the guest's OWN allocated cores, as Proxmox reports it.
-function formatCpu(value) {
+// Row gauges, CPU and RAM alike: "0.4%", "6.2%", "69%".
+function formatPct(value) {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   return (value < 10 ? value.toFixed(1) : Math.round(value)) + "%";
-}
-
-// Memory in use, compact: "512M", "1.2G", "24G".
-function formatRam(bytes) {
-  if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return "—";
-  const gb = bytes / 1073741824;
-  if (gb < 1) return Math.round(bytes / 1048576) + "M";
-  return (gb < 10 ? gb.toFixed(1) : Math.round(gb)) + "G";
 }
 
 function gbLabel(bytes) {
@@ -601,10 +593,24 @@ function buildTile(svc, index) {
   // dropped, because CPU and RAM are the point of these rows.
   const readouts = {};
   const cells = {};
+  const meters = {};
   const meta = el("span", "svc-meta");
   for (const [key, label] of [["cpu", "cpu"], ["ram", "ram"], ["latencyMs", "ping"]]) {
     const cell = el("span", "svc-stat svc-stat--" + key);
     cell.appendChild(el("span", "svc-stat-label", label));
+    // CPU and RAM get a bar gauge. The fill is scaled with a transform rather
+    // than a width so each poll's change is a compositor-only animation.
+    if (key !== "latencyMs") {
+      const meter = el("span", "meter");
+      meter.setAttribute("role", "meter");
+      meter.setAttribute("aria-valuemin", "0");
+      meter.setAttribute("aria-valuemax", "100");
+      meter.setAttribute("aria-label", label.toUpperCase() + " usage");
+      const fill = el("span", "meter-fill");
+      meter.appendChild(fill);
+      cell.appendChild(meter);
+      meters[key] = { meter, fill };
+    }
     const val = el("span", "svc-stat-value");
     cell.appendChild(val);
     meta.appendChild(cell);
@@ -626,7 +632,24 @@ function buildTile(svc, index) {
   }
   row.appendChild(visitSlot);
 
-  return { card: row, readouts, cells, sr };
+  return { card: row, readouts, cells, meters, sr };
+}
+
+// Level bands for the row gauges. CPU is judged harder than RAM: a container
+// sitting above half its cores is doing real work, while RAM at 75% of its
+// allocation is unremarkable.
+const LEVELS = { cpu: [50, 80], ram: [75, 90] };
+function levelOf(kind, pct) {
+  if (pct == null) return "";
+  const [warn, hot] = LEVELS[kind];
+  return pct >= hot ? "lvl-hot" : pct >= warn ? "lvl-warn" : "lvl-ok";
+}
+
+function setMeter(m, pct) {
+  const v = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+  m.fill.style.transform = "scaleX(" + (v / 100).toFixed(4) + ")";
+  if (pct == null) m.meter.removeAttribute("aria-valuenow");
+  else m.meter.setAttribute("aria-valuenow", String(Math.round(v)));
 }
 
 function gridForNode(nodeId, nodes) {
@@ -673,20 +696,37 @@ function renderStatus(services, nodes) {
     }
     tile.card.className = "svc-row status-" + svc.status;
     if (tile.sr) tile.sr.textContent = svc.name + ": " + svc.status;
-    setReadout(tile.readouts.cpu, svc.cpu, formatCpu);
-    setReadout(tile.readouts.ram, svc.memUsed, formatRam);
-    setReadout(tile.readouts.latencyMs, svc.latencyMs, formatLatency);
+    // RAM as a percent of the guest's allocation, capped at 100 for display: a
+    // VM's host-side figure can read slightly over (102% for VM 201).
+    const memPct = svc.memUsed != null && svc.memTotal
+      ? Math.min(100, (svc.memUsed / svc.memTotal) * 100)
+      : null;
+    // A VM's RAM is the host's view and sits near 100% by design (see
+    // server.js), so it gets a hatched "host view" bar and never a warning.
+    const hostView = svc.kind === "vm" && memPct != null;
 
-    // Full figures on hover, and a warm tint when a guest is near its limit.
+    setReadout(tile.readouts.cpu, svc.cpu, formatPct);
+    setReadout(tile.readouts.ram, memPct, formatPct);
+    setReadout(tile.readouts.latencyMs, svc.latencyMs, formatLatency);
+    setMeter(tile.meters.cpu, svc.cpu);
+    setMeter(tile.meters.ram, memPct);
+
+    const levels = ["lvl-ok", "lvl-warn", "lvl-hot"];
+    tile.cells.cpu.classList.remove(...levels);
+    tile.cells.ram.classList.remove(...levels);
+    const cpuLvl = levelOf("cpu", svc.cpu);
+    const ramLvl = hostView ? "lvl-ok" : levelOf("ram", memPct);
+    if (cpuLvl) tile.cells.cpu.classList.add(cpuLvl);
+    if (ramLvl) tile.cells.ram.classList.add(ramLvl);
+    tile.cells.ram.classList.toggle("is-hostview", hostView);
+    tile.cells.cpu.classList.toggle("is-empty", svc.cpu == null);
+    tile.cells.ram.classList.toggle("is-empty", memPct == null);
+
+    // Full figures on hover.
     tile.cells.cpu.title = svc.cpu == null ? "" :
-      formatCpu(svc.cpu) + " of " + svc.cores + (svc.cores === 1 ? " core" : " cores");
-    const memPct = svc.memUsed != null && svc.memTotal ? (svc.memUsed / svc.memTotal) * 100 : null;
+      formatPct(svc.cpu) + " of " + svc.cores + (svc.cores === 1 ? " core" : " cores");
     tile.cells.ram.title = svc.memUsed == null ? "" :
-      gbLabel(svc.memUsed) + " of " + gbLabel(svc.memTotal) +
-      (svc.kind === "vm" ? " (as the host sees it)" : " (" + Math.round(memPct) + "%)");
-    tile.cells.cpu.classList.toggle("is-hot", svc.cpu != null && svc.cpu >= 80);
-    // A VM's host-side figure sits near 100% by design, so it never "runs hot".
-    tile.cells.ram.classList.toggle("is-hot", svc.kind !== "vm" && memPct != null && memPct >= 90);
+      gbLabel(svc.memUsed) + " of " + gbLabel(svc.memTotal) + (hostView ? " — as the host sees it" : "");
   });
 
   // Node headers: availability over 24h / 30d from our own samples.

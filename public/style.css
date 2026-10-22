@@ -1720,26 +1720,26 @@ body {
    y=295 was simply behind the card. Every star was rendering correctly and
    none were visible, which is what "I still don't see shooting stars" was.
 
-   A screen-blended version of this layer was tried first and dropped: the
-   stars are near-white, and screen(x, white) == white, so blending was
-   pixel-identical to plain alpha compositing while forcing the whole
-   viewport to re-composite every frame. Plain alpha it is.
-
-   The peak opacity in @keyframes shoot is the contrast budget, measured by
-   pinning a streak across .pc-bio-line and comparing glyph contrast inside
-   the band against the same text outside it:
-
-     peak 0.55 -> 3.19:1 inside vs 4.55:1 outside  (fails AA)
-     peak 0.35 -> 3.39:1 inside vs 4.11:1 outside
-     peak 0.32 -> no measurable cost
-
+   A screen-blended version of this layer was tried first and dropped: the
+   stars are near-white, and screen(x, white) == white, so blending was
+   pixel-identical to plain alpha compositing while forcing the whole
+   viewport to re-composite every frame. Plain alpha it is.
+
+   The peak opacity in @keyframes shoot is the contrast budget, measured by
+   pinning a streak across .pc-bio-line and comparing glyph contrast inside
+   the band against the same text outside it:
+
+     peak 0.55 -> 3.19:1 inside vs 4.55:1 outside  (fails AA)
+     peak 0.35 -> 3.39:1 inside vs 4.11:1 outside
+     peak 0.32 -> no measurable cost
+
    Raising it puts a washed 2px band across body text. Re-measure first. */
 .shooting {
   position: fixed;
   inset: 0;
-  z-index: 3;
-  pointer-events: none;
-  overflow: hidden;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
 }
 /* Structure is arm > streak > head.
 
@@ -2835,14 +2835,85 @@ body {
   white-space: nowrap;
 }
 
-/* Near the limit: CPU at 80%+ of the guest's cores, RAM at 90%+ of its
-   allocation. VMs are exempt on RAM — see app.js. */
-.svc-stat.is-hot .svc-stat-value { color: var(--amber); }
+/* ---- CPU / RAM gauges ----
+   A bar and a percentage per metric. CPU's base hue is teal-to-green, RAM's
+   violet-to-blue, so the two read apart at a glance; both turn amber, then
+   rose, near the limit (bands in app.js: CPU 50/80, RAM 75/90). The value
+   text follows the same three states using text-safe tokens only. */
 
-/* On a phone three columns crowd the names, so one goes — and since CPU and
-   RAM are the point of these rows, it is ping, not RAM. Class selectors, not
-   nth-child: the old rule hid "the 2nd column", which is RAM now. */
+.svc-stat--cpu,
+.svc-stat--ram { align-items: center; gap: 6px; }
+
+.meter {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(var(--ink-rgb) / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(var(--ink-rgb) / 0.05);
+}
+.meter-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.6s var(--ease-out-expo), background 0.3s ease;
+}
+
+.svc-stat--cpu .meter-fill { background: linear-gradient(90deg, var(--teal-lt), var(--green-lt)); }
+.svc-stat--ram .meter-fill { background: linear-gradient(90deg, var(--violet-lt), var(--cyan)); }
+.svc-stat.lvl-warn .meter-fill { background: linear-gradient(90deg, #ffe7a3, var(--amber)); }
+.svc-stat.lvl-hot  .meter-fill {
+  background: linear-gradient(90deg, #ffc7b0, #ff9aa8);
+  box-shadow: 0 0 8px rgb(255 154 168 / 0.6);
+}
+.svc-stat.lvl-warn .svc-stat-value { color: var(--amber); }
+.svc-stat.lvl-hot  .svc-stat-value { color: #ffb3c0; }
+
+/* A VM's RAM is the host's view and sits near full by design: hatched and
+   muted so it is not read as a guest about to run out. */
+.svc-stat.is-hostview .meter-fill {
+  background: repeating-linear-gradient(135deg,
+    rgb(var(--violet-lt-rgb) / 0.55) 0 3px,
+    rgb(var(--violet-lt-rgb) / 0.22) 3px 6px);
+}
+.svc-stat.is-hostview .svc-stat-value { color: var(--ink-muted); }
+
+.svc-stat.is-empty .meter { opacity: 0.5; }
+
+/* Phones: the gauges need more room than numbers, so each row wraps onto two
+   lines — name on top, the two bars stretched across the line below,
+   indented under the name. Ping is dropped here; CPU and RAM are the point of
+   these rows. Class selectors, not nth-child: an earlier rule hid "the 2nd
+   column", which became RAM when the columns changed. */
 @media (max-width: 560px) {
+  .svc-row { flex-wrap: wrap; row-gap: 7px; }
+  .svc-meta {
+    order: 5;
+    flex: 1 0 100%;
+    gap: 14px;
+    padding-inline-start: 18px;
+  }
   .svc-stat:nth-child(2) { display: flex; }
   .svc-stat--latencyMs { display: none; }
+  .svc-stat--cpu,
+  .svc-stat--ram { flex: 1 1 0; min-width: 0; }
+  .svc-stat--cpu .meter,
+  .svc-stat--ram .meter { flex: 1 1 auto; width: auto; height: 7px; }
+  .svc-stat--cpu .svc-stat-value,
+  .svc-stat--ram .svc-stat-value { min-width: 38px; }
+}
+
+/* Desktop: give the name back the width the bars took. Percentages are at
+   most 4 characters ("0.2%", "69%"), so the value column can be narrower
+   than the 48px the old "100.0%" uptime figures needed. */
+@media (min-width: 561px) {
+  .meter { width: 40px; }
+  .svc-meta { gap: 12px; }
+  .svc-stat--cpu .svc-stat-value,
+  .svc-stat--ram .svc-stat-value { min-width: 36px; }
 }

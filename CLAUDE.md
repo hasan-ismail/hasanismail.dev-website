@@ -990,20 +990,40 @@ this, that pill is the whole point of hiding the rest.
 
 Inside: a **list** (`.svc-list` / `.svc-row`), not a tile grid — rows read
 faster for 30 services. Each row is a status dot, the service name (with a
-"VM" marker for VMs), then three mono stats right-aligned — **cpu, ram,
-ping** — and an optional visit link. Hovering cpu gives "N% of K cores";
-hovering ram gives "used of allocated". A guest at 80%+ CPU or 90%+ RAM tints
-amber (`.is-hot`); VMs are exempt on RAM because their host-side figure sits
-near 100% by design.
+"VM" marker for VMs), then **cpu** and **ram** — each a bar gauge plus a
+percentage — then **ping**, and an optional visit link. Hovering cpu gives
+"N% of K cores"; hovering ram gives "used of allocated".
+
+The gauges (`.meter` / `.meter-fill`):
+
+- Both are percentages. RAM is `memUsed / memTotal`, capped at 100 for
+  display (a VM's host view can read 102%).
+- Base hues tell the two apart: CPU teal→green, RAM violet→blue. Both go
+  **amber** (`.lvl-warn`) then **rose with a glow** (`.lvl-hot`) near the
+  limit, and the value text follows. Bands live in `LEVELS` in app.js: CPU
+  50/80, RAM 75/90 — CPU is judged harder because a container above half its
+  cores is doing real work, while RAM at 75% is unremarkable.
+- A **VM's RAM** is the host's view and sits near full by design, so it gets
+  a hatched, muted bar (`.is-hostview`), its tooltip says "as the host sees
+  it", and it never warns.
+- The fill is scaled with `transform: scaleX()`, not `width`, so each poll's
+  change animates on the compositor.
+- Stopped guests and non-cluster checks (Homarr) show an empty bar and "—".
+- `role="meter"` with `aria-valuenow` per gauge.
 
 **24h / 30d uptime is per node**, on the right of each node header
-(`.status-group-stats`), not per row. Below 560px the **ping** column is the
-one hidden (`.svc-stat--latencyMs`) — CPU and RAM are the point of the rows.
-Use the per-column classes, not `nth-child`: the old rule hid "the 2nd
-column", which became RAM when the columns changed.
+(`.status-group-stats`), not per row.
 
-Measured with the glyph-mask rig with the list open: 156 text elements on a
-phone and 214 on desktop, **0 below AA**, the amber state included.
+**On a phone** (≤560px) each row wraps onto two lines — name on top, the two
+gauges stretched across the line below and indented under the name — and
+ping is hidden (`.svc-stat--latencyMs`). Use the per-column classes, not
+`nth-child`: an earlier rule hid "the 2nd column", which became RAM when the
+columns changed. On desktop the bars are 40px and the value column 36px,
+which is what keeps a name like "OpenMasjid Solutions" from truncating.
+
+Measured with the glyph-mask rig, list open, every gauge state forced on:
+**0 below AA**. Worst per state — normal 9.4:1, amber 8.6:1, rose 7.8:1,
+host-view 8.0:1, node header 6.5:1.
 
 The summary pill reads "All services online and operational" on a green
 bubble when everything is up, and "Some services offline — N of M online" on
