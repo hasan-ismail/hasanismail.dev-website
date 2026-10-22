@@ -95,6 +95,11 @@ if [ ! -f "$ENV_FILE" ]; then
 HOMARR_TOKEN=
 # Optional: overrides config.json "homarr.url".
 # HOMARR_URL=http://192.168.1.33:7575
+#
+# Discord webhook for the "Message me" form. Anyone with this URL can post to
+# the channel, so it lives here and nowhere else. Without it, messages are
+# still saved to /opt/hasanismail-site/data/contact-log.jsonl.
+DISCORD_WEBHOOK_URL=
 # Optional: raises the GitHub API ceiling from 60 to 5000 requests/hour.
 # GITHUB_TOKEN=
 ENVTEMPLATE
@@ -114,8 +119,9 @@ cat <<'NOTE'
 Installed to /opt/hasanismail-site — service is running on :3300
 
 Still to do:
-  1. Put your Homarr API key in /etc/hasanismail-site.env (HOMARR_TOKEN=...)
-     to turn on the live cluster / network / Pi-hole panels.
+  1. Put your Homarr API key (HOMARR_TOKEN=...) and Discord webhook
+     (DISCORD_WEBHOOK_URL=...) in /etc/hasanismail-site.env to turn on the
+     live homelab panels and the contact form.
   2. Confirm the service targets in config.json (internal IPs/ports).
   3. Set DISCORD_USER_ID in public/app.js, and join discord.gg/lanyard once.
   4. Point your Cloudflare Tunnel at this host's port 3300.

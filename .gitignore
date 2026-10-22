@@ -2,3 +2,5 @@ node_modules/
 data/*.json
 !data/.gitkeep
 package-lock.json
+data/*.jsonl
+data/*.jsonl.1

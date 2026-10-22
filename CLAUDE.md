@@ -93,9 +93,10 @@ Any change that threads a `target` value into an API response or a file
 under `public/` is a bug, not a feature. Logging targets server-side is
 fine; sending them to a client is not.
 
-The only routes are `/api/status`, `/api/github`, `/api/profile`,
-`/api/social` and the static mount on `public/`. Never add a static mount or a route that could
-serve `config.json`, `data/`, or the repo root.
+The only routes are `GET /api/status`, `/api/github`, `/api/profile`,
+`/api/social`, `POST /api/contact` and the static mount on `public/`. Never add
+a static mount or a route that could serve `config.json`, `data/` (which now
+holds `contact-log.jsonl` — visitor IPs and messages), or the repo root.
 
 `/api/github` and `/api/profile` are both **server-side proxies of public
 third-party data**, cached (1h and 30min). Neither touches `config.json`
@@ -204,6 +205,61 @@ Finish details, all load-bearing for how it reads:
   rule butting into the rounded corners.
 - Under 430px the halves stack icon-over-label; two labels do not fit side by
   side on a small phone.
+
+### Contact form — POST /api/contact → Discord webhook
+
+The "Message me" section (after Links) sends a topic, a message of up to 2000
+characters, and an optional reply contact (Discord / WhatsApp / Email /
+Instagram / Telegram / Other + handle). The server forwards it to a Discord
+webhook as an embed with everything it can learn about the sender:
+
+- **IP** from `CF-Connecting-IP` (behind the tunnel the socket is always
+  cloudflared). That header can be forged by anyone on the LAN, so the socket
+  address is kept too and the embed notes when the IP came from elsewhere.
+- **Location**: Cloudflare's own headers when present (country always; city,
+  region, coordinates and timezone once "Add visitor location headers" is
+  turned on under Rules → Transform Rules → Managed Transforms), plus a
+  server-side lookup at **ipwho.is** for city, coordinates, ASN and network
+  operator. HTTPS on purpose — ip-api.com's free tier is plain HTTP and would
+  send every sender's IP across the internet in the clear. The embed links an
+  approximate OpenStreetMap pin.
+- **VPN / datacenter**: a heuristic on the ASN name, labelled as one, plus a
+  check of the browser's reported timezone against the IP's — a mismatch is the
+  most reliable VPN tell available without a paid service.
+- **Device**: a dependency-free user-agent parse (phone/tablet/desktop/bot, OS,
+  browser), and Chromium's client hints for the real model and OS version —
+  Chrome on Android freezes its UA to "Android 10; K". Windows client-hint
+  versions are translated (13+ is Windows 11).
+- **What the browser reports** — timezone, local time, languages, screen,
+  window, pixel ratio, cores, memory, touch points, connection, colour scheme,
+  referrer, seconds from page open to send. All spoofable, labelled "reported".
+
+**The form says this happens**, in a line under the button. That notice is
+deliberate — collecting this much without saying so is the part that creates
+trust and legal problems. Keep it.
+
+Rules the route keeps (all covered by the end-to-end test, 29/29):
+
+- `DISCORD_WEBHOOK_URL` comes only from `/etc/hasanismail-site.env`. Anyone who
+  has a webhook URL can post to that channel. It is validated as a Discord
+  webhook (or localhost, for testing) and never appears in anything served.
+- **Nothing collected is echoed back.** The response is `{ok:true}` or
+  `{ok:false, error}`.
+- Visitor text is untrusted: `allowed_mentions: {parse: []}` so nothing can
+  ping @everyone, a role or a user; markdown is escaped so a message cannot
+  build a masked `[safe text](evil-url)` link; `@everyone`/`@here` are also
+  broken with a zero-width space as a second guard.
+- Every client field is picked by name, type-checked and length-capped; the
+  body limit is 16KB (413 above it).
+- Abuse: an off-screen honeypot field and a 2.5s minimum fill time both get a
+  fake `{ok:true}` and send nothing, so a bot learns nothing; 3 messages per IP
+  per 10 minutes, 10 per day, 25 site-wide per hour (Discord caps a webhook at
+  about 30 a minute); and a foreign `Origin` gets 403.
+- Every submission is appended to `data/contact-log.jsonl` **after** the
+  Discord attempt, with `delivered: true|false` — the `false` lines are what to
+  read after an outage or with no webhook configured. Rotates at 5MB to
+  `.jsonl.1`. Both are gitignored: the repo is public and these files hold
+  visitor IPs.
 
 ### /api/social — best-effort, mostly blocked
 
@@ -1083,11 +1139,12 @@ a remote script to bash as root.
 Re-running `install.sh` is the upgrade path: it pulls, reinstalls deps,
 and restarts the unit.
 
-**Secrets** live in `/etc/hasanismail-site.env` (`HOMARR_TOKEN`, optionally
-`HOMARR_URL` and `GITHUB_TOKEN`), loaded by the unit's
-`EnvironmentFile=-/etc/hasanismail-site.env`. `install.sh` creates it
-root:root 0600 with a commented template **only if it is missing** — a re-run
-never overwrites a pasted key. systemd reads it as root before dropping to the
+**Secrets** live in `/etc/hasanismail-site.env` (`HOMARR_TOKEN`,
+`DISCORD_WEBHOOK_URL`, optionally `HOMARR_URL` and `GITHUB_TOKEN`), loaded by
+the unit's `EnvironmentFile=-/etc/hasanismail-site.env`. `install.sh` creates
+it root:root 0600 with a commented template **only if it is missing** — a
+re-run never overwrites a pasted key, which also means an existing file does
+not gain lines added to the template later; add those by hand. systemd reads it as root before dropping to the
 service user, so that user never needs read access. After editing it:
 `systemctl restart hasanismail-site`.
 

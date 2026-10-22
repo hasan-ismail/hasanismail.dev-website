@@ -1567,5 +1567,142 @@ async function loadSocial() {
   }
 }
 
+// ---- contact form ----
+//
+// Posts to /api/contact, which forwards to the owner's Discord. Alongside the
+// message it sends what the browser reports about itself (timezone, screen,
+// hardware, languages); the server adds IP, location and the parsed user
+// agent. The form's own notice tells senders this. The server never echoes
+// any of it back — the response is just ok or an error message.
+
+const PAGE_OPENED_AT = Date.now();
+
+// Short example formats rather than instructions: on a phone the field is
+// ~320px and a sentence gets cut off mid-word.
+const REPLY_PLACEHOLDER = {
+  discord: "your Discord username",
+  whatsapp: "+1 555 123 4567",
+  email: "you@example.com",
+  instagram: "@yourhandle",
+  telegram: "@yourusername",
+  other: "where can I reach you?",
+};
+
+async function collectClientInfo() {
+  const info = {};
+  const tryit = (fn) => { try { fn(); } catch {} };
+  tryit(() => { info.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; });
+  tryit(() => {
+    info.localTime = new Date().toLocaleString("en-US", {
+      weekday: "short", hour: "numeric", minute: "2-digit", hour12: true,
+    });
+  });
+  tryit(() => { info.languages = Array.from(navigator.languages || [navigator.language]).slice(0, 6); });
+  tryit(() => { info.screen = screen.width + "×" + screen.height; });
+  tryit(() => { info.viewport = window.innerWidth + "×" + window.innerHeight; });
+  tryit(() => { info.dpr = Math.round((window.devicePixelRatio || 1) * 100) / 100; });
+  tryit(() => { info.colorDepth = screen.colorDepth; });
+  tryit(() => { if (navigator.hardwareConcurrency) info.cores = navigator.hardwareConcurrency; });
+  tryit(() => { if (navigator.deviceMemory) info.memory = navigator.deviceMemory; });
+  tryit(() => { info.touch = navigator.maxTouchPoints || 0; });
+  tryit(() => {
+    const c = navigator.connection;
+    if (c) { info.connection = c.effectiveType; if (c.downlink) info.downlink = c.downlink; }
+  });
+  tryit(() => { info.colorScheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; });
+  tryit(() => { info.reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches; });
+  tryit(() => { info.cookies = navigator.cookieEnabled; });
+  tryit(() => { if (document.referrer) info.referrer = document.referrer; });
+  info.elapsedMs = Date.now() - PAGE_OPENED_AT;
+  // Chromium exposes the real device model and OS version only through
+  // user-agent client hints; Firefox and Safari simply do not have them.
+  try {
+    const uad = navigator.userAgentData;
+    if (uad) {
+      info.mobile = uad.mobile;
+      info.platform = uad.platform;
+      info.brands = uad.brands.map((x) => x.brand + " " + x.version).join(", ");
+      const hi = await uad.getHighEntropyValues(["model", "platformVersion"]);
+      if (hi.model) info.model = hi.model;
+      if (hi.platformVersion) info.platformVersion = hi.platformVersion;
+    }
+  } catch {}
+  return info;
+}
+
+function initContact() {
+  const form = document.getElementById("contact-form");
+  if (!form) return;
+  const message = document.getElementById("c-message");
+  const count = document.getElementById("c-count");
+  const method = document.getElementById("c-method");
+  const handle = document.getElementById("c-handle");
+  const send = document.getElementById("c-send");
+  const status = document.getElementById("c-status");
+
+  const updateCount = () => {
+    const n = message.value.length;
+    count.textContent = n + " / 2000";
+    count.classList.toggle("is-near", n > 1800);
+  };
+  message.addEventListener("input", updateCount);
+  updateCount();
+
+  const updatePlaceholder = () => {
+    handle.placeholder = REPLY_PLACEHOLDER[method.value] || "";
+    handle.type = method.value === "email" ? "email" : "text";
+    handle.inputMode = method.value === "whatsapp" ? "tel" : method.value === "email" ? "email" : "text";
+  };
+  method.addEventListener("change", updatePlaceholder);
+  updatePlaceholder();
+
+  const say = (text, kind) => {
+    status.textContent = text;
+    status.className = "contact-status" + (kind ? " is-" + kind : "");
+  };
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = message.value.trim();
+    if (text.length < 2) {
+      say("Write a message first.", "error");
+      message.focus();
+      return;
+    }
+    send.disabled = true;
+    say("Sending…");
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: form.elements.topic.value,
+          message: text,
+          method: handle.value.trim() ? method.value : "",
+          handle: handle.value.trim(),
+          website: form.elements.website.value,
+          client: await collectClientInfo(),
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.ok) {
+        say(handle.value.trim()
+          ? "Sent — thanks! I'll get back to you."
+          : "Sent — thanks for the message!", "ok");
+        message.value = "";
+        handle.value = "";
+        updateCount();
+      } else {
+        say(body.error || "Couldn't send that — please try again.", "error");
+      }
+    } catch {
+      say("Couldn't reach the server — check your connection and try again.", "error");
+    } finally {
+      send.disabled = false;
+    }
+  });
+}
+
 safe("initTimezone", initTimezone);
 safe("loadSocial", loadSocial);
+safe("initContact", initContact);

@@ -2707,3 +2707,120 @@ body {
 .cluster-node-foot { white-space: pre-line; line-height: 1.45; }
 .dash-nowrap { white-space: nowrap; }
 .dash-legend strong { margin-inline-start: 4px; }
+
+/* ==========================================================================
+   CONTACT FORM — "Message me"
+   Posts to /api/contact -> Discord webhook. Inputs are 16px on purpose: iOS
+   zooms the page on focus for anything smaller. color-scheme: dark makes the
+   native <select> popups dark too; without it some engines draw them white
+   with near-white text.
+   ========================================================================== */
+
+.section-contact .section-title { --accent: var(--pink-lt); }
+
+.contact {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 18px;
+  border-radius: 20px;
+}
+
+.contact-field { display: grid; gap: 6px; position: relative; min-width: 0; }
+
+.contact-label {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.contact-optional {
+  margin-inline-start: 6px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--ink-muted);
+  opacity: 0.85;
+}
+
+.contact-input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border-strong);
+  background: rgb(var(--ink-rgb) / 0.06);
+  color: var(--ink);
+  color-scheme: dark;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.contact-input::placeholder { color: var(--ink-muted); opacity: 0.9; }
+.contact-input:hover { border-color: rgb(var(--teal-lt-rgb) / 0.45); }
+.contact-input:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+  border-color: rgb(var(--teal-lt-rgb) / 0.7);
+  background: rgb(var(--ink-rgb) / 0.09);
+}
+.contact-input option { background: #14213f; color: var(--ink); }
+
+.contact-textarea { min-height: 128px; resize: vertical; }
+
+.contact-count {
+  justify-self: end;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--ink-muted);
+}
+.contact-count.is-near { color: var(--amber); }
+
+.contact-reply { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 6px; }
+.contact-reply legend { padding: 0; margin-bottom: 6px; }
+.contact-reply-row { display: flex; gap: 8px; min-width: 0; }
+.contact-method { flex: 0 0 auto; width: auto; max-width: 42%; }
+.contact-handle { flex: 1 1 auto; }
+@media (max-width: 420px) {
+  .contact-reply-row { flex-direction: column; }
+  .contact-method { max-width: none; }
+}
+
+/* Honeypot: off-screen, not display:none — some bots skip hidden fields. */
+.contact-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.contact-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.contact-send {
+  padding: 11px 20px;
+  border-radius: 12px;
+  border: 1px solid rgb(var(--teal-lt-rgb) / 0.55);
+  background: linear-gradient(100deg, rgb(var(--teal-lt-rgb) / 0.3), rgb(var(--violet-lt-rgb) / 0.26));
+  color: var(--ink);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.18s var(--ease-out-expo), border-color 0.18s ease, background 0.18s ease;
+}
+.contact-send:hover { transform: translateY(-1px); border-color: rgb(var(--teal-lt-rgb) / 0.85); }
+.contact-send:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.contact-send:disabled { opacity: 0.6; cursor: progress; transform: none; }
+
+.contact-status { margin: 0; font-size: 0.82rem; color: var(--ink-muted); }
+.contact-status.is-ok { color: var(--green-lt); }
+.contact-status.is-error { color: #ffb3c0; }
+
+.contact-note {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}

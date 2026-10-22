@@ -1198,6 +1198,436 @@ app.get("/api/social", (req, res) => {
   res.json(socialCache.data || {});
 });
 
+// ---------- contact form -> Discord webhook ----------
+//
+// Visitors send a message, an optional way to reply, and a topic. The server
+// forwards it to a Discord webhook together with everything it can learn about
+// the sender: IP, IP geolocation and network, parsed user agent, and what the
+// browser reports about itself. The form tells senders this happens; keep that
+// notice if you touch the markup.
+//
+// Rules this code keeps:
+//   * DISCORD_WEBHOOK_URL comes only from the environment. Anyone holding a
+//     webhook URL can post to that channel, so it must never reach the client
+//     or the public repo.
+//   * Nothing collected about the sender is ever echoed back in the response;
+//     the client only learns ok / an error message.
+//   * Visitor text is untrusted. allowed_mentions is empty, so nothing in a
+//     message can ping @everyone, a role or a user, and markdown is escaped so
+//     a message cannot dress up a masked phishing link.
+//   * Every client-supplied field is picked by name, type-checked and length-
+//     capped. The request body is capped at 16KB.
+//   * Bots and floods: a honeypot field, a minimum fill time, per-IP and
+//     global rate limits, and an Origin check. Discord itself caps a webhook at
+//     about 30 posts a minute; the global limit keeps well under that.
+//
+// Every submission is also appended to data/contact-log.jsonl, so a Discord
+// outage or a missing webhook never loses a message. The log rotates at 5MB.
+
+const CONTACT_WEBHOOK = process.env.DISCORD_WEBHOOK_URL || "";
+const CONTACT_LOG = path.join(__dirname, "data", "contact-log.jsonl");
+const CONTACT_LOG_MAX = 5 * 1024 * 1024;
+const CONTACT_MIN_FILL_MS = 2500;
+const CONTACT_ORIGINS = new Set([
+  "https://hasanismail.dev",
+  "https://www.hasanismail.dev",
+  "http://localhost:" + PORT,
+  "http://127.0.0.1:" + PORT,
+]);
+
+const CONTACT_TOPICS = Object.freeze({
+  general: { label: "General", color: 0x7ae8fb },
+  openmasjid: { label: "OpenMasjid", color: 0x7ef0c8 },
+  work: { label: "Work / hiring", color: 0xffd79a },
+  homelab: { label: "Homelab & tech", color: 0xb3b8ff },
+  collab: { label: "Collaboration", color: 0xff8ada },
+  feedback: { label: "Feedback / bug report", color: 0xffa9b8 },
+  other: { label: "Other", color: 0xc9d6e4 },
+});
+const CONTACT_METHODS = Object.freeze({
+  discord: "Discord",
+  whatsapp: "WhatsApp",
+  email: "Email",
+  instagram: "Instagram",
+  telegram: "Telegram",
+  other: "Other",
+});
+
+function contactWebhookOk(u) {
+  try {
+    const x = new URL(u);
+    if (
+      x.protocol === "https:" &&
+      /^(?:ptb\.|canary\.)?discord(?:app)?\.com$/.test(x.hostname) &&
+      x.pathname.startsWith("/api/webhooks/")
+    ) return true;
+    // Local testing only — a webhook pointed at this machine leaks nothing.
+    if (x.protocol === "http:" && (x.hostname === "127.0.0.1" || x.hostname === "localhost")) return true;
+  } catch {}
+  return false;
+}
+if (CONTACT_WEBHOOK && !contactWebhookOk(CONTACT_WEBHOOK)) {
+  console.error("DISCORD_WEBHOOK_URL is not a Discord webhook URL — messages will only be logged");
+} else if (!CONTACT_WEBHOOK) {
+  console.warn("DISCORD_WEBHOOK_URL not set — contact messages will only be logged to data/contact-log.jsonl");
+}
+
+// ---- who sent it ----
+
+// Behind the Cloudflare Tunnel every socket comes from cloudflared, so the real
+// address is CF-Connecting-IP. That header is only trustworthy for traffic that
+// actually came through Cloudflare — someone on the LAN could forge it — so the
+// socket address is recorded alongside it.
+function senderAddress(req) {
+  const clean = (s) => String(s || "").trim().replace(/^::ffff:/, "");
+  const cf = clean(req.get("cf-connecting-ip"));
+  const xff = clean(String(req.get("x-forwarded-for") || "").split(",")[0]);
+  const socket = clean(req.socket.remoteAddress);
+  return { ip: cf || xff || socket, via: cf ? "Cloudflare" : xff ? "X-Forwarded-For" : "socket", socket };
+}
+
+function isPublicIp(ip) {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split(".").map(Number);
+    return !(a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127));
+  }
+  if (net.isIPv6(ip)) return !/^(::1|fc|fd|fe80)/i.test(ip);
+  return false;
+}
+
+// Cloudflare adds country by default, and city/region/coordinates/timezone
+// once "Add visitor location headers" is enabled under Managed Transforms.
+function cloudflareGeo(req) {
+  const h = (n) => {
+    const v = req.get(n);
+    return v ? String(v).slice(0, 80) : null;
+  };
+  const g = {
+    country: h("cf-ipcountry"),
+    city: h("cf-ipcity"),
+    region: h("cf-region"),
+    postal: h("cf-postal-code"),
+    lat: h("cf-iplatitude"),
+    lon: h("cf-iplongitude"),
+    timezone: h("cf-timezone"),
+    continent: h("cf-ipcontinent"),
+  };
+  return Object.values(g).some(Boolean) ? g : null;
+}
+
+// Network and location for the IP. HTTPS on purpose: the free tier of the
+// other common service is plain HTTP, which would send every sender's IP
+// across the internet in the clear.
+async function lookupIp(ip) {
+  if (!isPublicIp(ip)) return null;
+  try {
+    const r = await fetch("https://ipwho.is/" + encodeURIComponent(ip), {
+      signal: AbortSignal.timeout(4000),
+      headers: { "User-Agent": "hasanismail.dev contact" },
+    });
+    const j = await r.json();
+    if (!j || j.success !== true) return null;
+    const s = (v, n = 80) => (v === null || v === undefined ? null : String(v).slice(0, n));
+    return {
+      city: s(j.city),
+      region: s(j.region),
+      country: s(j.country),
+      countryCode: s(j.country_code, 4),
+      postal: s(j.postal, 16),
+      lat: finite(j.latitude),
+      lon: finite(j.longitude),
+      timezone: s(j.timezone?.id, 48),
+      asn: finite(j.connection?.asn),
+      org: s(j.connection?.org),
+      isp: s(j.connection?.isp),
+      flag: s(j.flag?.emoji, 8),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// A heuristic, labelled as one in the message. Datacenter and VPN ASNs carry
+// names like these; a residential or mobile carrier almost never does.
+const HOSTING_ASN = /\b(amazon|aws|google|microsoft|azure|digitalocean|linode|akamai|ovh|hetzner|vultr|oracle|alibaba|tencent|choopa|m247|leaseweb|contabo|datacamp|cdn77|hosting|host|server|cloud|data ?cent(er|re)|colo|vpn|proxy|mullvad|nord|express ?vpn|surfshark|proton|private internet|ipvanish|windscribe|tor\b)/i;
+
+// Dependency-free user-agent parse. Good enough to tell a phone from a
+// desktop and name the browser and OS; the raw string is kept as well.
+function parseUserAgent(ua) {
+  ua = String(ua || "");
+  let x;
+  const out = { browser: "Unknown", browserVersion: "", os: "Unknown", osVersion: "", device: "Desktop" };
+  if ((x = ua.match(/Windows NT ([\d.]+)/))) { out.os = "Windows"; out.osVersion = x[1] === "10.0" ? "10/11" : x[1]; }
+  else if ((x = ua.match(/Android ([\d.]+)/))) { out.os = "Android"; out.osVersion = x[1]; }
+  else if ((x = ua.match(/(iPhone|iPad|iPod)[^)]*? OS ([\d_]+)/))) { out.os = x[1] === "iPad" ? "iPadOS" : "iOS"; out.osVersion = x[2].replace(/_/g, "."); }
+  else if ((x = ua.match(/Mac OS X ([\d_]+)/))) { out.os = "macOS"; out.osVersion = x[1].replace(/_/g, "."); }
+  else if (/CrOS/.test(ua)) out.os = "ChromeOS";
+  else if (/Linux/.test(ua)) out.os = "Linux";
+
+  if (/bot|crawl|spider|slurp|curl|wget|python|httpclient|headless|axios|node-fetch|go-http/i.test(ua)) out.device = "Bot / script";
+  else if (/iPad|Tablet/i.test(ua) || (/Android/.test(ua) && !/Mobile/.test(ua))) out.device = "Tablet";
+  else if (/Mobi|iPhone|iPod|Android/.test(ua)) out.device = "Phone";
+
+  const browsers = [
+    [/Edg(?:e|A|iOS)?\/([\d.]+)/, "Edge"],
+    [/OPR\/([\d.]+)/, "Opera"],
+    [/SamsungBrowser\/([\d.]+)/, "Samsung Internet"],
+    [/FxiOS\/([\d.]+)/, "Firefox"],
+    [/Firefox\/([\d.]+)/, "Firefox"],
+    [/CriOS\/([\d.]+)/, "Chrome"],
+    [/Chrome\/([\d.]+)/, "Chrome"],
+    [/Version\/([\d.]+).*Safari/, "Safari"],
+  ];
+  for (const [re, name] of browsers) {
+    if ((x = ua.match(re))) { out.browser = name; out.browserVersion = x[1].split(".")[0]; break; }
+  }
+  return out;
+}
+
+// What the browser said about itself. Spoofable, so labelled "reported" in the
+// message; picked by name and bounded so a hostile client cannot bloat it.
+function pickClientInfo(c) {
+  if (!c || typeof c !== "object") return {};
+  const s = (v, n = 80) => (typeof v === "string" && v ? v.slice(0, n) : null);
+  const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const bool = (v) => (typeof v === "boolean" ? v : null);
+  return {
+    timezone: s(c.timezone, 48),
+    localTime: s(c.localTime, 40),
+    languages: Array.isArray(c.languages) ? c.languages.slice(0, 6).map((l) => s(l, 16)).filter(Boolean) : null,
+    screen: s(c.screen, 24),
+    viewport: s(c.viewport, 24),
+    dpr: num(c.dpr),
+    colorDepth: num(c.colorDepth),
+    cores: num(c.cores),
+    memory: num(c.memory),
+    touch: num(c.touch),
+    connection: s(c.connection, 12),
+    downlink: num(c.downlink),
+    platform: s(c.platform, 32),
+    model: s(c.model, 48),
+    platformVersion: s(c.platformVersion, 24),
+    mobile: bool(c.mobile),
+    brands: s(c.brands, 120),
+    colorScheme: s(c.colorScheme, 8),
+    reducedMotion: bool(c.reducedMotion),
+    cookies: bool(c.cookies),
+    referrer: s(c.referrer, 200),
+    elapsedMs: num(c.elapsedMs),
+  };
+}
+
+// ---- abuse limits ----
+
+const contactHits = new Map(); // ip -> timestamps of accepted messages
+const contactRecent = []; // timestamps across everyone
+function contactRateLimited(ip, now = Date.now()) {
+  const mine = (contactHits.get(ip) || []).filter((t) => now - t < DAY_MS);
+  const recentGlobal = contactRecent.filter((t) => now - t < 3_600_000);
+  contactRecent.length = 0;
+  contactRecent.push(...recentGlobal);
+  if (mine.filter((t) => now - t < 10 * 60_000).length >= 3) return "Too many messages — try again in a few minutes.";
+  if (mine.length >= 10) return "That's the limit for today — try again tomorrow.";
+  if (contactRecent.length >= 25) return "Lots of messages right now — try again in a little while.";
+  mine.push(now);
+  contactHits.set(ip, mine);
+  contactRecent.push(now);
+  return null;
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, list] of contactHits) {
+    const keep = list.filter((t) => now - t < DAY_MS);
+    if (keep.length) contactHits.set(ip, keep); else contactHits.delete(ip);
+  }
+}, 3_600_000).unref();
+
+// ---- the Discord message ----
+
+// Escape markdown so visitor text renders literally and cannot build a masked
+// link; break up @everyone/@here as a second guard behind allowed_mentions.
+function escapeDiscord(text) {
+  return String(text)
+    .replace(/([\\`*_~|[\]()])/g, "\\$1")
+    .replace(/^([#>-])/gm, "\\$1")
+    .replace(/@(everyone|here)/gi, "@​$1");
+}
+const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+
+function buildContactEmbed(m) {
+  const topic = CONTACT_TOPICS[m.topic];
+  const fields = [];
+  const add = (name, value, inline = false) => {
+    if (value === null || value === undefined || value === "") return;
+    fields.push({ name, value: clip(String(value), 1024), inline });
+  };
+
+  add("Reply via", m.reply ? CONTACT_METHODS[m.reply.method] + ": " + escapeDiscord(m.reply.handle) : "_No contact left — no reply expected_");
+
+  const geo = m.geo, cf = m.cfGeo;
+  const place = [geo?.city || cf?.city, geo?.region || cf?.region, geo?.country || cf?.country].filter(Boolean).join(", ");
+  add("IP", "`" + m.ip.ip + "`" + (m.ip.via !== "Cloudflare" ? "  (via " + m.ip.via + ")" : ""), true);
+  add("Location", place ? (geo?.flag ? geo.flag + " " : "") + place + (geo?.postal ? " " + geo.postal : "") : null, true);
+  if (geo?.lat !== null && geo?.lat !== undefined && geo?.lon !== null && geo?.lon !== undefined) {
+    add("Map (approximate)", "[" + geo.lat.toFixed(3) + ", " + geo.lon.toFixed(3) + "](https://www.openstreetmap.org/?mlat=" + geo.lat + "&mlon=" + geo.lon + "#map=11/" + geo.lat + "/" + geo.lon + ")", true);
+  }
+  if (geo) {
+    const net = [geo.asn ? "AS" + geo.asn : null, geo.isp || geo.org].filter(Boolean).join(" · ");
+    const hosting = HOSTING_ASN.test((geo.isp || "") + " " + (geo.org || ""));
+    add("Network", (net || "unknown") + (hosting ? "\n⚠️ looks like a datacenter / VPN (heuristic)" : ""), true);
+  }
+
+  const ua = m.ua;
+  const c = m.client;
+  // Client-hint platformVersion is precise but not human: Windows reports 13+
+  // for Windows 11 and 1-10 for Windows 10 (the UA string says "NT 10.0" for
+  // both). Elsewhere it is the real OS version.
+  let osVersion = ua.osVersion;
+  if (c.platformVersion) {
+    const major = parseInt(c.platformVersion, 10);
+    osVersion = ua.os === "Windows" && Number.isFinite(major)
+      ? (major >= 13 ? "11" : major >= 1 ? "10" : "7/8")
+      : c.platformVersion;
+  }
+  const devicebits = [
+    c.model ? c.model : ua.device,
+    ua.os + (osVersion ? " " + osVersion : ""),
+    ua.browser + (ua.browserVersion ? " " + ua.browserVersion : ""),
+  ];
+  add("Device", devicebits.join(" · "), true);
+
+  const tzIp = geo?.timezone || cf?.timezone;
+  const tzLine = c.timezone
+    ? c.timezone + (tzIp ? (tzIp === c.timezone ? "  ✓ matches IP" : "  ⚠️ IP says " + tzIp) : "")
+    : null;
+  add("Timezone (reported)", tzLine, true);
+  add("Local time (reported)", c.localTime, true);
+  add("Languages", (c.languages && c.languages.join(", ")) || m.acceptLanguage, true);
+  add("Screen", c.screen ? c.screen + (c.dpr ? " @" + c.dpr + "x" : "") + (c.viewport ? " · window " + c.viewport : "") : null, true);
+
+  const hw = [
+    c.cores ? c.cores + " cores" : null,
+    c.memory ? c.memory + " GB RAM" : null,
+    c.touch ? "touch (" + c.touch + " points)" : null,
+    c.connection ? c.connection + (c.downlink ? " " + c.downlink + " Mbps" : "") : null,
+    c.colorScheme ? c.colorScheme + " mode" : null,
+  ].filter(Boolean).join(" · ");
+  add("Hardware / prefs (reported)", hw, false);
+  add("Came from", c.referrer ? escapeDiscord(c.referrer) : null, false);
+  add("Filled in", c.elapsedMs ? Math.round(c.elapsedMs / 1000) + "s after opening the page" : null, true);
+  add("User agent", "```" + clip(m.userAgent.replace(/`/g, "'"), 900) + "```", false);
+
+  return {
+    title: "📬 " + topic.label,
+    description: clip(escapeDiscord(m.message), 4000),
+    color: topic.color,
+    fields: fields.slice(0, 25),
+    footer: { text: "hasanismail.dev" + (m.cfRay ? " · cf-ray " + m.cfRay : "") },
+    timestamp: m.at,
+  };
+}
+
+async function postToDiscord(embed) {
+  if (!CONTACT_WEBHOOK || !contactWebhookOk(CONTACT_WEBHOOK)) return false;
+  const send = () =>
+    fetch(CONTACT_WEBHOOK + (CONTACT_WEBHOOK.includes("?") ? "&" : "?") + "wait=true", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: "hasanismail.dev",
+        allowed_mentions: { parse: [] },
+        embeds: [embed],
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+  let res = await send();
+  if (res.status === 429) {
+    const body = await res.json().catch(() => ({}));
+    const wait = Math.min(5, Number(body.retry_after) || 2);
+    await sleep(wait * 1000);
+    res = await send();
+  }
+  if (!res.ok) {
+    console.error("discord webhook failed: HTTP " + res.status);
+    return false;
+  }
+  return true;
+}
+
+async function appendContactLog(entry) {
+  try {
+    await fs.promises.mkdir(path.dirname(CONTACT_LOG), { recursive: true });
+    try {
+      const st = await fs.promises.stat(CONTACT_LOG);
+      if (st.size > CONTACT_LOG_MAX) await fs.promises.rename(CONTACT_LOG, CONTACT_LOG + ".1");
+    } catch {}
+    await fs.promises.appendFile(CONTACT_LOG, JSON.stringify(entry) + "\n");
+    return true;
+  } catch (err) {
+    console.error("contact log write failed:", err.message);
+    return false;
+  }
+}
+
+app.post("/api/contact", express.json({ limit: "16kb" }), async (req, res) => {
+  const fail = (code, error) => res.status(code).json({ ok: false, error });
+
+  // Same-site only. A cross-site JSON POST is already stopped by CORS
+  // preflight; this also refuses simple form posts from elsewhere.
+  const origin = req.get("origin");
+  if (origin && !CONTACT_ORIGINS.has(origin)) return fail(403, "Messages can only be sent from hasanismail.dev.");
+
+  const b = req.body && typeof req.body === "object" ? req.body : {};
+  const message = typeof b.message === "string" ? b.message.replace(/\r\n/g, "\n").trim() : "";
+  const topic = typeof b.topic === "string" && CONTACT_TOPICS[b.topic] ? b.topic : null;
+  const method = typeof b.method === "string" && CONTACT_METHODS[b.method] ? b.method : null;
+  const handle = typeof b.handle === "string" ? b.handle.trim().slice(0, 120) : "";
+  const client = pickClientInfo(b.client);
+
+  // Bots: the honeypot is invisible to people, and nobody writes a real
+  // message in under 2.5s. Answer as if it worked so the bot learns nothing.
+  if ((typeof b.website === "string" && b.website.trim()) || (client.elapsedMs !== null && client.elapsedMs < CONTACT_MIN_FILL_MS)) {
+    return res.json({ ok: true });
+  }
+
+  if (!topic) return fail(400, "Pick a topic.");
+  if (message.length < 2) return fail(400, "Write a message first.");
+  if (message.length > 2000) return fail(400, "That's over 2000 characters — trim it a little.");
+  if (handle && !method) return fail(400, "Pick how I should reply.");
+  if (method === "email" && handle && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(handle)) return fail(400, "That email address doesn't look right.");
+
+  const ip = senderAddress(req);
+  const limited = contactRateLimited(ip.ip);
+  if (limited) return fail(429, limited);
+
+  const userAgent = String(req.get("user-agent") || "").slice(0, 400);
+  const entry = {
+    at: new Date().toISOString(),
+    topic,
+    message,
+    reply: handle ? { method, handle } : null,
+    ip,
+    cfGeo: cloudflareGeo(req),
+    geo: await lookupIp(ip.ip),
+    userAgent,
+    ua: parseUserAgent(userAgent),
+    acceptLanguage: String(req.get("accept-language") || "").slice(0, 80) || null,
+    cfRay: String(req.get("cf-ray") || "").slice(0, 40) || null,
+    client,
+  };
+
+  const sent = await postToDiscord(buildContactEmbed(entry)).catch((err) => {
+    console.error("discord webhook failed:", err.message);
+    return false;
+  });
+  // Logged after the attempt so `delivered:false` lines are the ones to read
+  // if Discord was down or the webhook was missing.
+  const logged = await appendContactLog({ ...entry, delivered: sent });
+  if (!sent && !logged) return fail(502, "Couldn't send that right now — please try again later.");
+  res.json({ ok: true });
+});
+
 app.listen(PORT, () => {
   console.log(`hasanismail-site listening on :${PORT}`);
 
