@@ -19,10 +19,34 @@ const RETAIN_DAYS = 30;
 const DAY_MS = 86_400_000;
 
 const app = express();
-// Short max-age with revalidation. There is no build step and therefore no
-// content hashing, so a long immutable cache would strand returning visitors on
-// stale CSS/JS with no recovery path.
-app.use(express.static(path.join(__dirname, "public"), {
+const PUBLIC_DIR = path.join(__dirname, "public");
+
+// The page is served with its stylesheet and script URLs stamped with a hash of
+// their contents. Cloudflare overrides our 5-minute max-age and keeps CSS/JS in
+// browsers for 4 hours while the page itself is always fresh, so a returning
+// visitor used to run each new page against the previous app.js — twice that
+// broke a feature outright. A changed file now has a new URL, so the fresh page
+// always fetches its matching script. Stamped once at boot: every deploy
+// restarts the process. If a tag stops matching, that asset is served
+// unstamped, which is the old behaviour rather than a broken page.
+const INDEX_HTML = (() => {
+  const stamp = (file) => require("crypto").createHash("sha256")
+    .update(fs.readFileSync(path.join(PUBLIC_DIR, file))).digest("hex").slice(0, 10);
+  let html = fs.readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf8");
+  for (const [tag, file] of [['href="style.css"', "style.css"], ['src="app.js"', "app.js"]]) {
+    if (html.includes(tag)) html = html.replace(tag, tag.slice(0, -1) + "?v=" + stamp(file) + '"');
+    else console.warn(`index.html: ${tag} not found, ${file} served without a version stamp`);
+  }
+  return html;
+})();
+app.get(["/", "/index.html"], (req, res) => {
+  res.set("Cache-Control", "no-cache").type("html").send(INDEX_HTML);
+});
+
+// Short max-age with revalidation. There is no build step, so the only content
+// hashing is the stamp above; a long immutable cache would strand anything
+// requested unstamped on stale CSS/JS with no recovery path.
+app.use(express.static(PUBLIC_DIR, {
   maxAge: "5m",
   setHeaders(res, filePath) {
     if (filePath.endsWith(".html")) res.setHeader("Cache-Control", "no-cache");
@@ -865,6 +889,95 @@ app.get("/api/github", async (req, res) => {
 const DISCORD_PROFILE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 let profileCache = { at: 0, data: null };
 
+// Discord's Activity & Progression badges (Account Age, Streaming, Game Time,
+// Game Variety) are absent from the dcdn copy, which is cached upstream and
+// cannot be refreshed from here. The tiers the owner holds are declared in
+// config.discord.activityBadges and drawn from public/badges/activity/ — hosted
+// locally, like backdrop.jpg, rather than hotlinked from a community CDN. If
+// upstream ever returns a badge for the same series it wins and the local one
+// is dropped, so the two cannot double up.
+const ACTIVITY_SERIES = {
+  account_age: {
+    label: "Account Age",
+    tiers: ["Seed", "Sprout", "Bud", "Sapling", "Blossom", "Redwood", "Sequoia", "Bristlecone", "Stromatolite", "Primordial"],
+    need: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    unit: (n) => `${n}${n === 10 ? "+" : ""} year${n === 1 ? "" : "s"} on Discord`,
+  },
+  streaming: {
+    label: "Streaming",
+    tiers: ["Newcomer", "Fledgling", "Breakout", "Standout", "Trendsetter", "Headliner", "Star", "Sensation", "Visionary", "Phenomenon"],
+    need: [1, 5, 20, 75, 150, 300, 500, 1000, 2000, 5000],
+    unit: (n) => `${n.toLocaleString("en-US")}+ hours streamed`,
+  },
+  game_time: {
+    label: "Game Time",
+    tiers: ["Casual", "Recreational", "Dedicated", "Committed", "Serious", "Devoted", "Seasoned", "Ironclad", "Unshakeable", "Eternal"],
+    need: [1, 5, 20, 75, 150, 300, 500, 1000, 2000, 5000],
+    unit: (n) => `${n.toLocaleString("en-US")}+ hours played`,
+  },
+  game_variety: {
+    label: "Game Variety",
+    tiers: ["Sampler", "Dabbler", "Enthusiast", "Ranger", "Explorer", "Adventurer", "Voyager", "Maverick", "Polymath", "Universalist"],
+    need: [2, 5, 10, 15, 20, 30, 40, 60, 80, 100],
+    unit: (n) => `${n}+ games played`,
+  },
+};
+
+// Whole years since the account was created. A Discord id is a snowflake whose
+// top 42 bits are milliseconds since 2015-01-01, so this needs no API call and
+// the Account Age tier moves up by itself on each anniversary.
+function accountAgeYears(now = new Date()) {
+  let created;
+  try {
+    created = new Date(Number(BigInt(DISCORD_USER_ID) >> 22n) + 1420070400000);
+  } catch {
+    return 0;
+  }
+  let years = now.getUTCFullYear() - created.getUTCFullYear();
+  const m = now.getUTCMonth() - created.getUTCMonth();
+  if (m < 0 || (m === 0 && now.getUTCDate() < created.getUTCDate())) years--;
+  return years;
+}
+
+function localActivityBadges(upstream) {
+  const wanted = config.discord?.activityBadges || {};
+  const out = [];
+  for (const [series, setting] of Object.entries(wanted)) {
+    const s = ACTIVITY_SERIES[series];
+    if (!s) continue;
+    if (upstream.some((b) => typeof b.id === "string" && b.id.includes(series))) continue;
+    const tier = setting === "auto" && series === "account_age"
+      ? Math.min(10, accountAgeYears())
+      : Number(setting);
+    if (!Number.isInteger(tier) || tier < 1 || tier > 10) continue;
+    out.push({
+      id: series,
+      description: `${s.label}: ${s.tiers[tier - 1]} — ${s.unit(s.need[tier - 1])}`,
+      icon: null,
+      // Built only from a key of ACTIVITY_SERIES and an integer 1-10, so it is
+      // always one of the 40 files in public/badges/activity/.
+      image: `/badges/activity/${series}_${tier}.svg`,
+      link: null,
+    });
+  }
+  return out;
+}
+
+// Discord's display order, from config.discord.badgeOrder. Keys are series
+// prefixes ("premium_tenure", not "premium_tenure_6_month_v2") so a badge that
+// levels up keeps its place. Anything unlisted keeps upstream order at the end.
+function orderBadges(list) {
+  const order = config.discord?.badgeOrder || [];
+  const rank = (b) => {
+    const i = order.findIndex((k) => String(b.id).includes(k));
+    return i < 0 ? order.length : i;
+  };
+  return list
+    .map((b, i) => ({ b, i, r: rank(b) }))
+    .sort((x, y) => x.r - y.r || x.i - y.i)
+    .map((x) => x.b);
+}
+
 async function fetchDiscordProfile() {
   const url = `https://dcdn.dstn.to/profile/${encodeURIComponent(DISCORD_USER_ID)}`;
   const controller = new AbortController();
@@ -875,6 +988,14 @@ async function fetchDiscordProfile() {
     const j = await res.json();
     const u = j.user || {};
     const p = j.user_profile || {};
+    const upstreamBadges = (j.badges || []).map((b) => ({
+      id: b.id,
+      description: b.description || "",
+      icon: b.icon || null,
+      // https only. This value becomes an href in the browser, so a
+      // compromised upstream could otherwise hand us a javascript: URL.
+      link: typeof b.link === "string" && /^https:\/\//i.test(b.link) ? b.link : null,
+    }));
     return {
       id: u.id,
       banner: u.banner || null,
@@ -884,14 +1005,7 @@ async function fetchDiscordProfile() {
       pronouns: p.pronouns || null,
       bio: p.bio || u.bio || "",
       premiumType: j.premium_type || 0,
-      badges: (j.badges || []).map((b) => ({
-        id: b.id,
-        description: b.description || "",
-        icon: b.icon || null,
-        // https only. This value becomes an href in the browser, so a
-        // compromised upstream could otherwise hand us a javascript: URL.
-        link: typeof b.link === "string" && /^https:///i.test(b.link) ? b.link : null,
-      })),
+      badges: orderBadges([...upstreamBadges, ...localActivityBadges(upstreamBadges)]),
       // type/name/verified only — the raw ids are deliberately not forwarded.
       connections: (j.connected_accounts || []).map((c) => ({
         type: c.type,

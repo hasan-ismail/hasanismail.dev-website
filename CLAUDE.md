@@ -105,9 +105,26 @@ under `public/` is a bug, not a feature. Logging targets server-side is
 fine; sending them to a client is not.
 
 The only routes are `GET /api/status`, `/api/github`, `/api/profile`,
-`/api/social`, `POST /api/contact` and the static mount on `public/`. Never add
-a static mount or a route that could serve `config.json`, `data/` (which now
-holds `contact-log.jsonl` — visitor IPs and messages), or the repo root.
+`/api/social`, `POST /api/contact`, `GET /` (and `/index.html`) and the static
+mount on `public/`. Never add a static mount or a route that could serve
+`config.json`, `data/` (which now holds `contact-log.jsonl` — visitor IPs and
+messages), or the repo root.
+
+### Asset version stamps — why `/` is a route
+
+`GET /` serves `public/index.html` with `style.css` and `app.js` rewritten to
+`style.css?v=<hash>` / `app.js?v=<hash>`, a hash of each file's contents taken
+once at boot (every deploy restarts the process). Cloudflare overrides our
+5-minute `max-age` and keeps CSS/JS in browsers for **4 hours**, while the page
+itself is `no-cache` — so every deploy used to run the new page against the
+previous script for a while. That broke the contact form once (commit 5624218)
+and would have hidden the four new Discord badges from anyone who had visited
+that day. A changed file now has a new URL, so the fresh page always loads its
+own script.
+
+The rewrite matches the literal tags `href="style.css"` and `src="app.js"`. If
+you change either tag the server logs a warning and serves it unstamped —
+the old behaviour, not a broken page — so keep them literal.
 
 **Errors never return a stack trace.** Express's default error handler answers
 with an HTML page containing the full stack whenever `NODE_ENV` is not
@@ -908,8 +925,55 @@ The panel is deliberately **not** `position: sticky`. Merged, it is taller
 than most viewports, and a sticky box taller than the screen traps its own
 bottom off-screen permanently.
 
-Badges are decoded from the `public_flags` bitfield in `badgesFor()` — only
-flags Lanyard actually exposes, nothing inferred.
+Until `/api/profile` answers, badges are text pills decoded from the
+`public_flags` bitfield in `badgesFor()` — only flags Lanyard actually
+exposes, nothing inferred. Once it answers they become icons.
+
+### Profile badges — order and the four that upstream lacks
+
+Discord's "Your badges" panel shows **11**; the dcdn copy has **7**. dcdn
+answers `cached: true` and nothing refreshes it — `?cache=false`, `?nocache=1`,
+`?force=true`, `?refresh=1` and `?fresh=true` were all tried. The four missing
+are Discord's newer **Activity & Progression** series (Account Age,
+Streaming, Game Time, Game Variety — 10 tiers each).
+
+They are declared in `config.discord.activityBadges` and built server-side in
+`localActivityBadges()`:
+
+- `"account_age": "auto"` works out the tier from the account's creation date,
+  read straight out of the snowflake id (top 42 bits = ms since 2015-01-01), so
+  it moves up by itself every 30 September. The other three are a tier number
+  set by hand — their thresholds are hours played/streamed and games played,
+  which no public endpoint exposes. Bump them when Discord does.
+- The tiers were identified by rendering all 40 icons beside crops of the
+  owner's screenshot, not by guessing: Account Age 6 (Redwood), Streaming 4
+  (Standout), Game Time 6 (Devoted), Game Variety 1 (Sampler).
+- Icons are **all 40 tier SVGs**, hosted in `public/badges/activity/` (~60KB),
+  so changing a tier never needs a new asset. They came from the community
+  Fmasterpro27/Discord-badges collection and were checked before committing:
+  no script, no foreignObject, no external reference — only `url(#a)`-style
+  internal gradient ids. Hosted locally for the same reason as `backdrop.jpg`.
+- If upstream ever returns a badge whose id contains the series name, upstream
+  wins and the local one is dropped, so the two cannot double up.
+- The client accepts an `image` only if it matches
+  `^/badges/[a-z0-9_/-]+\.svg$`; Discord's own badges still load from its CDN by
+  `icon` hash.
+
+**Order** is `config.discord.badgeOrder`, copied from Discord's panel. Keys are
+series prefixes matched by `includes` — `premium_tenure`, not
+`premium_tenure_6_month_v2` — so a badge that levels up keeps its place.
+Anything unlisted keeps upstream order at the end.
+
+**The badge links were dead for a while, silently.** Both the server and client
+checks were written `/^https:///i` — backslashes lost to a shell edit. That
+parses as the regex `/^https:/` followed by a `//` comment, so the server sent
+`link: {}` for every badge and none of them linked. They are
+`/^https:\/\//i` again. **Write regex literals with the Edit tool, never
+through a shell heredoc**, and grep for `:///` after any scripted edit.
+
+Eleven badges need 300px; a 360px phone gives the card 298px, so the last one
+wrapped onto a line by itself. Under 400px the strip's gap is 2px (each icon
+already has 2px of air inside its 22px box), which fits one row down to ~340px.
 
 **Games** are static content in a native `<details>`, collapsed by default, so
 the toggle needs no JS and stays keyboard accessible. Covers are Steam library

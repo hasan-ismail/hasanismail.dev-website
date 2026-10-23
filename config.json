@@ -9,6 +9,27 @@
     "reddit": "hasanismail_",
     "instagram": "hasanismail.usa"
   },
+  "discord": {
+    "badgeOrder": [
+      "account_age",
+      "premium_tenure",
+      "gifting",
+      "legacy_username",
+      "hypesquad",
+      "guild_booster",
+      "streaming",
+      "game_time",
+      "game_variety",
+      "quest_completed",
+      "orb_profile_badge"
+    ],
+    "activityBadges": {
+      "account_age": "auto",
+      "streaming": 4,
+      "game_time": 6,
+      "game_variety": 1
+    }
+  },
   "homarr": {
     "url": "http://192.168.1.33:7575"
   },
@@ -42,7 +63,8 @@
       "name": "hasanismail.dev",
       "node": "node1",
       "type": "http",
-      "target": "http://192.168.1.200:3300"
+      "target": "http://192.168.1.200:3300",
+      "publicUrl": "https://hasanismail.dev"
     },
     {
       "id": "openmasjidos",
@@ -227,6 +249,12 @@
       "node": "node2",
       "type": "tcp",
       "target": "192.168.1.55:3389"
+    },
+    {
+      "id": "rifusa-org",
+      "name": "rifusa.org",
+      "guest": "rifusa.org",
+      "publicUrl": "https://rifusa.org"
     }
   ]
 }

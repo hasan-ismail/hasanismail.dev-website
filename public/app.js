@@ -1378,15 +1378,21 @@ async function loadDiscordProfile() {
     badges.classList.add("is-icons");
     richProfile.badges = true;
     for (const b of p.badges) {
-      if (!b.icon) continue;
+      // Discord's own icons come from its CDN by hash. The activity badges the
+      // upstream copy lacks are files under /badges/ on this site; nothing
+      // else is accepted as a path.
+      const src = typeof b.image === "string" && /^\/badges\/[a-z0-9_\/-]+\.svg$/.test(b.image)
+        ? b.image
+        : b.icon ? CDN + "/badge-icons/" + b.icon + ".png" : null;
+      if (!src) continue;
       // Mirror of the server-side check: only https becomes a link, so a
       // compromised upstream cannot inject a javascript: URL.
-      const safeLink = typeof b.link === "string" && /^https:///i.test(b.link) ? b.link : null;
+      const safeLink = typeof b.link === "string" && /^https:\/\//i.test(b.link) ? b.link : null;
       const node = safeLink ? el("a", "pc-badge-icon") : el("span", "pc-badge-icon");
       if (safeLink) { node.href = safeLink; node.rel = "noopener"; }
       node.title = b.description || b.id;
       const img = el("img");
-      img.src = CDN + "/badge-icons/" + b.icon + ".png";
+      img.src = src;
       img.alt = b.description || b.id;
       img.loading = "lazy";
       hideOnError(img);

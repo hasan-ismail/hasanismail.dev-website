@@ -1194,6 +1194,13 @@ html[data-motion="off"] .cursor-glow { display: none !important; }
 }
 .pc-badge-icon img { width: 18px; height: 18px; display: block; }
 a.pc-badge-icon:hover { transform: translateY(-2px) scale(1.12); background: rgb(var(--ink-rgb) / 0.09); }
+/* Eleven badges need 300px at the default spacing, and a 360px phone leaves
+   the card 298px — so the last badge wrapped onto a line of its own. Each icon
+   already sits in a 22px box with 2px of air either side, so a 2px gap still
+   reads as evenly spaced and the row fits down to ~340px. */
+@media (max-width: 400px) {
+  .pc-badges.is-icons { gap: 2px; padding-inline: 6px; }
+}
 
 /* About me — verbatim, line breaks preserved, URLs linked. */
 .pc-bio-line {
