@@ -108,15 +108,25 @@ ENVTEMPLATE
 fi
 
 cp "$SERVICE.service" "/etc/systemd/system/$SERVICE.service"
+# Auto-update: every 5 minutes the timer runs update.sh, which redeploys (by
+# re-running this script) only when GitHub's main has moved. See update.sh.
+cp "$SERVICE-update.service" "/etc/systemd/system/$SERVICE-update.service"
+cp "$SERVICE-update.timer" "/etc/systemd/system/$SERVICE-update.timer"
 systemctl daemon-reload
 systemctl enable --now "$SERVICE"
 # enable --now only *starts* an inactive unit. On a re-run the unit is already
 # active, so without this restart the old code would keep serving.
 systemctl restart "$SERVICE"
+# Never restart the update *service* from here: when the updater is what is
+# running this script, that would kill it mid-install.
+systemctl enable --now "$SERVICE-update.timer"
 
 cat <<'NOTE'
 
 Installed to /opt/hasanismail-site — service is running on :3300
+Auto-update is on: new commits on main go live within 5 minutes.
+  Log:  journalctl -u hasanismail-site-update
+  Off:  systemctl disable --now hasanismail-site-update.timer
 
 Still to do:
   1. Put your Homarr API key (HOMARR_TOKEN=...) and Discord webhook

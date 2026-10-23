@@ -39,7 +39,30 @@ const INDEX_HTML = (() => {
   }
   return html;
 })();
+// The deployed commit, read from .git at boot (no git binary needed), and sent
+// as X-Site-Commit on the page. With auto-update on, this is how to tell that a
+// push has actually gone live. The repo is public, so its hashes are too.
+const SITE_COMMIT = (() => {
+  try {
+    const git = path.join(__dirname, ".git");
+    const head = fs.readFileSync(path.join(git, "HEAD"), "utf8").trim();
+    if (!head.startsWith("ref: ")) return head.slice(0, 7);
+    const ref = head.slice(5);
+    try {
+      return fs.readFileSync(path.join(git, ref), "utf8").trim().slice(0, 7);
+    } catch {
+      // After a gc the ref lives only in packed-refs: "<sha> refs/heads/main".
+      const line = fs.readFileSync(path.join(git, "packed-refs"), "utf8")
+        .split("\n").find((l) => l.endsWith(" " + ref));
+      return line ? line.slice(0, 7) : null;
+    }
+  } catch {
+    return null;
+  }
+})();
+
 app.get(["/", "/index.html"], (req, res) => {
+  if (SITE_COMMIT) res.set("X-Site-Commit", SITE_COMMIT);
   res.set("Cache-Control", "no-cache").type("html").send(INDEX_HTML);
 });
 

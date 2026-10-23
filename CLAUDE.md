@@ -17,6 +17,8 @@ it that way — don't add a bundler, a CSS framework, or a client library.
 - `config.json` — the list of monitored services.
 - `data/history.json` — runtime state, gitignored. Safe to delete; it
   just resets uptime history.
+- `install.sh` / `update.sh` and their units — deploy, and auto-deploy every 5
+  minutes when main moves (see "Auto-update" under Deployment target).
 
 ### The lines-added figure is slow on a cold process
 
@@ -1257,6 +1259,55 @@ a remote script to bash as root.
 
 Re-running `install.sh` is the upgrade path: it pulls, reinstalls deps,
 and restarts the unit.
+
+### Auto-update — pushes to main go live within 5 minutes
+
+`hasanismail-site-update.timer` fires on the clock every 5 minutes (`:00`,
+`:05`, … with `AccuracySec=1s`; the default one-minute accuracy would make it
+up to 6) and runs `update.sh` as root. That script:
+
+- `git fetch`es main and **does nothing** if it is already deployed. This is
+  the important part: a restart is not free here. A fresh process redoes the
+  lines-written crawl, and restarting every 5 minutes would burn the whole
+  60-request/hour GitHub budget on it. The fetch itself is git protocol, not
+  the REST API, so it costs nothing against that budget.
+- Uses `merge-base --is-ancestor`, not hash equality, so a checkout that is
+  somehow *ahead* of GitHub is not redeployed every 5 minutes.
+- Fast-forwards only. A force-push or a local edit on the box is refused,
+  logged, and the unit exits 1 — fix it by hand. Everything else keeps
+  serving the old code meanwhile.
+- Then `exec`s the **freshly pulled** `install.sh`, so a change to the
+  installer applies on the same run. The body sits inside `main()` because the
+  merge can rewrite `update.sh` while bash is still reading it; a function is
+  parsed in full before it runs.
+
+All of that was exercised against a throwaway remote, including a commit that
+rewrites `update.sh` mid-run. `install.sh` must never restart the *update*
+service — when the updater is the caller, that kills it mid-install.
+
+**Turning it on** needs one manual `bash install.sh` in the container; from
+then on it maintains itself. **Off:** `systemctl disable --now
+hasanismail-site-update.timer` — it stays off until `install.sh` is next run by
+hand, because a disabled timer cannot re-enable itself. **Log:** `journalctl -u
+hasanismail-site-update`.
+
+The trade-off, stated plainly: anyone who can push to `main` on GitHub can now
+run code as root in CT 124 within 5 minutes, with nobody in the loop. That
+was already true one manual `install.sh` later; now there is no manual step.
+
+**Knowing a push is live.** The page carries `X-Site-Commit: <short sha>`,
+read from `.git` at boot (packed-refs too; `null` and no header without a
+repo). After pushing, wait for it to match instead of sleeping a fixed 300s —
+a deploy is up to 5 minutes plus the install, and a refused fast-forward never
+lands at all:
+
+```bash
+want=$(git rev-parse --short=7 HEAD)
+until curl -sI https://hasanismail.dev/ | grep -qi "x-site-commit: $want"; do sleep 15; done
+```
+
+The asset stamps mean the browser picks up the new CSS/JS on the first load
+after that, despite Cloudflare's 4-hour browser cache.
 
 **Secrets** live in `/etc/hasanismail-site.env` (`HOMARR_TOKEN`,
 `DISCORD_WEBHOOK_URL`, optionally `HOMARR_URL` and `GITHUB_TOKEN`), loaded by

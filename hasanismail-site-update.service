@@ -1,0 +1,17 @@
+[Unit]
+Description=hasanismail.dev auto-update (redeploy when GitHub main moves)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Root, like install.sh: it writes /opt/hasanismail-site and
+# /etc/systemd/system and restarts the site. Be clear about what that means —
+# anyone who can push to main on GitHub can run code in this container within
+# 5 minutes, with nobody in the loop. Turn it off with
+#   systemctl disable --now hasanismail-site-update.timer
+# and it stays off until install.sh is next run by hand.
+ExecStart=/bin/bash /opt/hasanismail-site/update.sh
+# A oneshot has no start timeout by default, and one hung fetch would then
+# block every later run: a timer never starts a unit that is still active.
+TimeoutStartSec=10min

@@ -1,0 +1,12 @@
+[Unit]
+Description=Check GitHub for a new hasanismail.dev commit every 5 minutes
+
+[Timer]
+# On the clock (:00, :05, :10 …), so a push is live within 5 minutes plus the
+# install time, rather than 5 minutes after whenever the last run finished.
+OnCalendar=*:0/5
+# The default accuracy is a whole minute, which would stretch that to 6.
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
